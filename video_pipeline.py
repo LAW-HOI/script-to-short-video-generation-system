@@ -1422,6 +1422,8 @@ class PexelsBaseProvider:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
         self.requests = import_requests()
+        self.retry_count = 3
+        self.retry_delay = 3
 
     def build_queries(self, prompt: str) -> list[str]:
         normalized = prompt.strip().lower()
@@ -1464,6 +1466,42 @@ class PexelsBaseProvider:
         normalized_offset = offset % len(queries)
         return queries[normalized_offset:] + queries[:normalized_offset]
 
+    def request_json(self, url: str, *, params: dict[str, Any], timeout: int = 60) -> dict[str, Any]:
+        last_error: Exception | None = None
+        retry_statuses = {429, 500, 502, 503, 504}
+        for attempt in range(1, self.retry_count + 1):
+            try:
+                response = self.requests.get(
+                    url,
+                    headers={"Authorization": self.api_key},
+                    params=params,
+                    timeout=timeout,
+                )
+                if response.status_code in retry_statuses and attempt < self.retry_count:
+                    print(
+                        f"[重试] Pexels 暂时不可用，状态码 {response.status_code}，"
+                        f"{self.retry_delay} 秒后重试 {attempt}/{self.retry_count}...",
+                        file=sys.stderr,
+                    )
+                    time.sleep(self.retry_delay)
+                    continue
+                response.raise_for_status()
+                return response.json()
+            except Exception as exc:
+                last_error = exc
+                if attempt >= self.retry_count:
+                    break
+                print(
+                    f"[重试] Pexels 请求失败: {exc}，"
+                    f"{self.retry_delay} 秒后重试 {attempt}/{self.retry_count}...",
+                    file=sys.stderr,
+                )
+                time.sleep(self.retry_delay)
+        raise RuntimeError(
+            "Pexels 请求失败，可能是网络、代理或 Pexels 服务临时波动。"
+            f"原始错误: {last_error}"
+        )
+
 
 class PexelsBackgroundProvider(PexelsBaseProvider):
     search_url = "https://api.pexels.com/v1/search"
@@ -1481,9 +1519,8 @@ class PexelsBackgroundProvider(PexelsBaseProvider):
         selected_query = ""
         last_data: dict[str, Any] | None = None
         for query in queries:
-            response = self.requests.get(
+            data = self.request_json(
                 self.search_url,
-                headers={"Authorization": self.api_key},
                 params={
                     "query": query,
                     "orientation": "landscape",
@@ -1492,10 +1529,7 @@ class PexelsBackgroundProvider(PexelsBaseProvider):
                     "per_page": per_page,
                     "page": 1,
                 },
-                timeout=60,
             )
-            response.raise_for_status()
-            data = response.json()
             last_data = data
             photos = data.get("photos") or []
             if photos:
@@ -1572,9 +1606,8 @@ class PexelsVideoBackgroundProvider(PexelsBaseProvider):
         selected_query = ""
         last_data: dict[str, Any] | None = None
         for query in queries:
-            response = self.requests.get(
+            data = self.request_json(
                 self.search_url,
-                headers={"Authorization": self.api_key},
                 params={
                     "query": query,
                     "orientation": "landscape",
@@ -1582,10 +1615,7 @@ class PexelsVideoBackgroundProvider(PexelsBaseProvider):
                     "per_page": per_page,
                     "page": max(1, preferred_page),
                 },
-                timeout=60,
             )
-            response.raise_for_status()
-            data = response.json()
             last_data = data
             videos = data.get("videos") or []
             if videos:
@@ -1937,16 +1967,37 @@ def download_file(url: str, output_path: Path, headers: dict[str, str] | None = 
     request_headers = headers or {}
     if request_headers:
         requests = import_requests()
-        with requests.get(url, headers=request_headers, stream=True, timeout=120) as response:
-            response.raise_for_status()
-            with output_path.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 64):
-                    if chunk:
-                        handle.write(chunk)
-        return
+        last_error: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                with requests.get(url, headers=request_headers, stream=True, timeout=120) as response:
+                    response.raise_for_status()
+                    with output_path.open("wb") as handle:
+                        for chunk in response.iter_content(chunk_size=1024 * 64):
+                            if chunk:
+                                handle.write(chunk)
+                return
+            except Exception as exc:
+                last_error = exc
+                if attempt >= 3:
+                    break
+                print(f"[重试] 文件下载失败: {exc}，3 秒后重试 {attempt}/3...", file=sys.stderr)
+                time.sleep(3)
+        raise RuntimeError(f"文件下载失败，已重试 3 次。原始错误: {last_error}")
 
-    with urllib.request.urlopen(url) as response, output_path.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as response, output_path.open("wb") as handle:
+                shutil.copyfileobj(response, handle)
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt >= 3:
+                break
+            print(f"[重试] 文件下载失败: {exc}，3 秒后重试 {attempt}/3...", file=sys.stderr)
+            time.sleep(3)
+    raise RuntimeError(f"文件下载失败，已重试 3 次。原始错误: {last_error}")
 
 
 def split_script_text(script: str, max_chars: int) -> list[str]:
