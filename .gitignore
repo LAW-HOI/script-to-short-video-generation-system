@@ -1,0 +1,34 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local runtime outputs
+web_runs/
+output/
+
+# Large local models and generated media
+models/
+digit_person.png
+download.jpeg
+*.mp4
+*.mov
+*.webm
+*.mp3
+*.wav
+*.m4a
+
+# Local uploads / temporary files
+uploads/
+tmp/
+temp/
+
+# macOS / editor files
+.DS_Store
+.vscode/
+.idea/
