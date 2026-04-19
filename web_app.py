@@ -880,6 +880,14 @@ HTML_PAGE = """<!doctype html>
                       <option value="storyboard" selected>内容短视频模式</option>
                     </select>
                   </div>
+                  <div class="field">
+                    <label for="script-language">生成语言</label>
+                    <select id="script-language" name="script_language">
+                      <option value="zh" selected>中文</option>
+                      <option value="en">English</option>
+                    </select>
+                    <span class="tip">会影响 AI 文案、推荐音色和 Whisper 字幕语言。</span>
+                  </div>
                   <div class="field full">
                     <label for="creation-mode">创作模式</label>
                     <select id="creation-mode" name="creation_mode">
@@ -1025,12 +1033,16 @@ HTML_PAGE = """<!doctype html>
                       <button class="style-pill" type="button" data-voice-filter="dialect">方言</button>
                     </div>
                     <select id="voice" name="voice">
-                      <option value="zh-CN-XiaoxiaoNeural" data-group="female" data-note="温柔自然，适合治愈系和日常旁白。">晓晓 · 温柔女声</option>
-                      <option value="zh-CN-XiaoyiNeural" data-group="female" data-note="更轻柔一些，适合情绪感和旁白。">晓伊 · 轻柔女声</option>
-                      <option value="zh-CN-YunxiNeural" data-group="male" data-note="沉稳成熟，适合叙事和知识表达。">云希 · 沉稳男声</option>
-                      <option value="zh-CN-YunjianNeural" data-group="male" data-note="更年轻利落，适合科技和效率内容。">云健 · 青年男声</option>
-                      <option value="zh-CN-liaoning-XiaobeiNeural" data-group="dialect" data-note="带地域感，更有生活气和辨识度。">晓北 · 东北女声</option>
-                      <option value="zh-CN-shaanxi-XiaoniNeural" data-group="dialect" data-note="风格鲜明，适合有个性的轻内容表达。">晓妮 · 陕西女声</option>
+                      <option value="zh-CN-XiaoxiaoNeural" data-lang="zh" data-group="female" data-note="温柔自然，适合治愈系和日常旁白。">晓晓 · 温柔女声</option>
+                      <option value="zh-CN-XiaoyiNeural" data-lang="zh" data-group="female" data-note="更轻柔一些，适合情绪感和旁白。">晓伊 · 轻柔女声</option>
+                      <option value="zh-CN-YunxiNeural" data-lang="zh" data-group="male" data-note="沉稳成熟，适合叙事和知识表达。">云希 · 沉稳男声</option>
+                      <option value="zh-CN-YunjianNeural" data-lang="zh" data-group="male" data-note="更年轻利落，适合科技和效率内容。">云健 · 青年男声</option>
+                      <option value="zh-CN-liaoning-XiaobeiNeural" data-lang="zh" data-group="dialect" data-note="带地域感，更有生活气和辨识度。">晓北 · 东北女声</option>
+                      <option value="zh-CN-shaanxi-XiaoniNeural" data-lang="zh" data-group="dialect" data-note="风格鲜明，适合有个性的轻内容表达。">晓妮 · 陕西女声</option>
+                      <option value="en-US-JennyNeural" data-lang="en" data-group="female" data-note="Warm and natural American English voice, good for emotional narration.">Jenny · English female</option>
+                      <option value="en-US-AriaNeural" data-lang="en" data-group="female" data-note="Clear, bright American English voice, good for lifestyle and story videos.">Aria · English female</option>
+                      <option value="en-US-GuyNeural" data-lang="en" data-group="male" data-note="Steady American English male voice, good for cinematic narration.">Guy · English male</option>
+                      <option value="en-GB-RyanNeural" data-lang="en" data-group="male" data-note="Calm British English male voice, good for documentary-style videos.">Ryan · British male</option>
                     </select>
                     <div id="voice-note" class="voice-note">温柔自然，适合治愈系和日常旁白。</div>
                     <div class="actions">
@@ -1186,6 +1198,7 @@ HTML_PAGE = """<!doctype html>
     const selectionChip = document.getElementById("selection-chip");
     const selectedStrip = document.getElementById("selected-strip");
     const videoModeEl = document.getElementById("video-mode");
+    const scriptLanguageEl = document.getElementById("script-language");
     const creationModeEl = document.getElementById("creation-mode");
     const backgroundModeEl = document.getElementById("background-mode");
     const voiceEl = document.getElementById("voice");
@@ -1214,6 +1227,12 @@ HTML_PAGE = """<!doctype html>
 我们总以为生活是一场马拉松，其实它更像深夜街头的自动贩卖机。你永远不知道下一罐会掉落什么口味，但冰凉的触感，总能让人清醒。
 不必追赶黎明，你本身就是光。
 献给所有在深夜里，依然选择相信明天的人。`;
+    const demoTextEn = `At three in the morning, a convenience store becomes the city's last gentle shelter.
+Neon light breaks into constellations on the rain-soaked pavement, and you stand by the window with a cup of hot coffee, watching a city that refuses to sleep.
+Some people have just finished working overtime, some are only beginning their night, and your story hides in another quiet hour spent alone.
+We often think life is a marathon, but sometimes it feels more like a vending machine on an empty street.
+You never know what flavor will fall next, yet the cold touch of the can always wakes you up.
+You do not have to chase the dawn. You are already carrying light.`;
 
     let selectedBackgroundAssets = [];
     let candidateRefreshPage = 1;
@@ -1228,16 +1247,23 @@ HTML_PAGE = """<!doctype html>
     });
 
     voiceEl.addEventListener("change", updateVoiceNote);
+    scriptLanguageEl.addEventListener("change", () => {
+      applyLanguagePreset();
+      updateModeState();
+    });
 
     demoBtn.addEventListener("click", () => {
+      const language = scriptLanguageEl.value || "zh";
       selectedBackgroundAssets = [];
       document.getElementById("selected-background-assets").value = "";
       selectionChip.classList.remove("active");
       selectionChip.textContent = "";
       selectedStrip.classList.remove("active");
       selectedStrip.innerHTML = "";
-      document.getElementById("idea").value = "我想做一条关于深夜便利店、都市孤独感和希望感的治愈系短视频。";
-      document.getElementById("text").value = demoText;
+      document.getElementById("idea").value = language === "en"
+        ? "I want to create a warm short video about a midnight convenience store, urban loneliness, and the quiet hope of tomorrow."
+        : "我想做一条关于深夜便利店、都市孤独感和希望感的治愈系短视频。";
+      document.getElementById("text").value = language === "en" ? demoTextEn : demoText;
       document.getElementById("video-mode").value = "storyboard";
       document.getElementById("creation-mode").value = "lazy";
       document.getElementById("background-mode").value = "pexels-video";
@@ -1249,6 +1275,7 @@ HTML_PAGE = """<!doctype html>
     generateScriptBtn.addEventListener("click", async () => {
       const payload = {
         idea: document.getElementById("idea").value.trim(),
+        script_language: scriptLanguageEl.value,
         gemini_api_key: document.getElementById("gemini-api-key").value.trim(),
         gemini_model: (
           document.getElementById("gemini-model-custom").value.trim()
@@ -1374,6 +1401,7 @@ HTML_PAGE = """<!doctype html>
       const payload = {
         background_mode: mode,
         background_prompt: prompt,
+        script_language: scriptLanguageEl.value,
         text: document.getElementById("text").value.trim(),
         idea: document.getElementById("idea").value.trim(),
         pexels_api_key: document.getElementById("pexels-api-key").value.trim(),
@@ -1418,7 +1446,12 @@ HTML_PAGE = """<!doctype html>
         voice: document.getElementById("voice").value,
         rate: document.getElementById("rate").value,
         volume: document.getElementById("volume").value,
-        text: (document.getElementById("text").value || "你好，这是一段配音试听，我们正在为你生成一条短视频。").trim().slice(0, 60),
+        text: (
+          document.getElementById("text").value
+          || (scriptLanguageEl.value === "en"
+            ? "Hello, this is a voice preview for your short video."
+            : "你好，这是一段配音试听，我们正在为你生成一条短视频。")
+        ).trim().slice(0, 80),
       };
       previewVoiceBtn.disabled = true;
       previewVoiceBtn.textContent = "正在试听...";
@@ -1727,10 +1760,12 @@ HTML_PAGE = """<!doctype html>
 
     function applyVoiceFilter(filter) {
       const options = Array.from(voiceEl.options);
+      const language = scriptLanguageEl.value || "zh";
       let firstVisibleValue = "";
       options.forEach((option) => {
         const group = option.dataset.group || "all";
-        const visible = filter === "all" || group === filter;
+        const optionLanguage = option.dataset.lang || "zh";
+        const visible = optionLanguage === language && (filter === "all" || group === filter);
         option.hidden = !visible;
         if (visible && !firstVisibleValue) firstVisibleValue = option.value;
       });
@@ -1738,6 +1773,27 @@ HTML_PAGE = """<!doctype html>
         voiceEl.value = firstVisibleValue || voiceEl.value;
       }
       updateVoiceNote();
+    }
+
+    function getActiveVoiceFilter() {
+      return document.querySelector("[data-voice-filter].active")?.dataset.voiceFilter || "all";
+    }
+
+    function applyLanguagePreset() {
+      const language = scriptLanguageEl.value || "zh";
+      const whisperLanguageEl = document.getElementById("whisper-language");
+      if (whisperLanguageEl) {
+        whisperLanguageEl.value = language === "en" ? "en" : "zh";
+      }
+      const preferredVoice = language === "en" ? "en-US-JennyNeural" : "zh-CN-XiaoxiaoNeural";
+      if (Array.from(voiceEl.options).some((option) => option.value === preferredVoice)) {
+        voiceEl.value = preferredVoice;
+      }
+      if (language === "en" && getActiveVoiceFilter() === "dialect") {
+        voiceFilterPills.forEach((item) => item.classList.remove("active"));
+        voiceFilterPills[0]?.classList.add("active");
+      }
+      applyVoiceFilter(getActiveVoiceFilter());
     }
 
     function updateVoiceNote() {
@@ -1881,7 +1937,7 @@ HTML_PAGE = """<!doctype html>
       return escapeHtml(value).replaceAll('"', "&quot;");
     }
 
-    applyVoiceFilter("all");
+    applyLanguagePreset();
     updateModeState();
     loadConfigStatus();
     loadJobs();
@@ -2148,6 +2204,9 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
     if not idea:
         raise ValueError("请先输入你的想法。")
     style = str(payload.get("script_style") or "healing").strip()
+    script_language = str(payload.get("script_language") or "zh").strip().lower()
+    if script_language not in {"zh", "en"}:
+        script_language = "zh"
 
     api_key = resolve_secret(payload.get("gemini_api_key"), "GEMINI_API_KEY")
     if not api_key:
@@ -2159,27 +2218,65 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
         "tech": "整体气质冷静、未来感、节奏利落，适合 AI、科技、效率主题短视频。",
         "product": "整体气质清晰、直接、可信，适合产品介绍、功能讲解、品牌旁白。",
     }
+    if script_language == "en":
+        style_instructions = {
+            "healing": "The tone should feel warm, healing, visual, and suitable for emotional short videos.",
+            "tech": "The tone should feel clear, futuristic, and concise, suitable for AI, technology, and productivity topics.",
+            "product": "The tone should feel direct, trustworthy, and suitable for product explainers or brand narration.",
+        }
+        planner_role = "You are an English short-video script planner. Return strict JSON only."
+        response_rule = "Do not output anything outside the JSON object."
+        fields_rule = "The JSON object must contain exactly four fields:"
+        title_rule = "title: a concise English video title, 3 to 7 words, no excessive punctuation;"
+        script_rule = "script: an English narration script ready for voice-over;"
+        background_rule = "background_prompt: an English Pexels search prompt for realistic background footage;"
+        mode_rule = "recommended_video_mode: always return storyboard."
+        writing_rule = (
+            "Requirements: script must be natural, cinematic, coherent, and voice-over friendly; "
+            "do not include headings or numbering; output 6 to 10 sentences for a 30 to 60 second short video; "
+            "keep sentence length moderate for automatic segmentation and subtitles. "
+        )
+        background_detail_rule = (
+            "background_prompt must be concrete, restrained, and suitable for real stock-footage search; "
+            "prioritize scene nouns and avoid abstract adjectives. "
+        )
+        user_prompt = f"Generate the result from this idea: {idea}"
+    else:
+        planner_role = "你是中文短视频文案策划。根据用户给出的想法，输出严格 JSON。"
+        response_rule = "不要输出任何 JSON 之外的解释。"
+        fields_rule = "JSON 必须包含四个字段："
+        title_rule = "title: 简短的视频标题或任务名，8 到 16 个中文字符，不要标点堆砌；"
+        script_rule = "script: 可直接用于配音旁白的中文文案；"
+        background_rule = "background_prompt: 适合 Pexels 检索的英文背景提示词；"
+        mode_rule = "recommended_video_mode: 固定返回 storyboard。"
+        writing_rule = (
+            "要求：script 自然、连贯、有画面感；不要标题，不要编号；"
+            "输出 6 到 10 句，适合 30 到 60 秒短视频；"
+            "句子长度适中，便于后续自动分段和字幕生成。"
+        )
+        background_detail_rule = "background_prompt 要具体、克制、适合真实素材检索，优先场景名词，少用抽象形容词。"
+        user_prompt = f"请根据这个想法生成结果：{idea}"
     selected_style_instruction = style_instructions.get(style, style_instructions["healing"])
+    system_text = " ".join(
+        [
+            planner_role,
+            response_rule,
+            fields_rule,
+            title_rule,
+            script_rule,
+            background_rule,
+            mode_rule,
+            writing_rule,
+            background_detail_rule,
+            selected_style_instruction,
+        ]
+    )
     requests = pipeline_script.import_requests()
     request_payload = {
         "system_instruction": {
             "parts": [
                 {
-                    "text": (
-                    "你是中文短视频文案策划。根据用户给出的想法，输出严格 JSON。"
-                    "不要输出任何 JSON 之外的解释。"
-                    "JSON 必须包含四个字段："
-                    "title: 简短的视频标题或任务名，8 到 16 个中文字符，不要标点堆砌；"
-                    "script: 可直接用于配音旁白的中文文案；"
-                    "background_prompt: 适合 Pexels 检索的英文背景提示词；"
-                    "recommended_video_mode: 固定返回 storyboard。"
-                        "要求：script 自然、连贯、有画面感；不要标题，不要编号；"
-                        "输出 6 到 10 句，适合 30 到 60 秒短视频；"
-                        "句子长度适中，便于后续自动分段和字幕生成。"
-                        "background_prompt 要具体、克制、适合真实素材检索，优先场景名词，少用抽象形容词。"
-                        "recommended_video_mode 固定设为 storyboard。"
-                        f"{selected_style_instruction}"
-                    )
+                    "text": system_text
                 }
             ]
         },
@@ -2188,7 +2285,7 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
                 "role": "user",
                 "parts": [
                     {
-                        "text": f"请根据这个想法生成结果：{idea}"
+                        "text": user_prompt
                     }
                 ],
             }
@@ -2221,6 +2318,7 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
         "recommended_video_mode": recommended_video_mode,
         "model": used_model,
         "style": style,
+        "script_language": script_language,
     }
 
 
