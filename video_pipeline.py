@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import random
 import shlex
 import shutil
 import subprocess
@@ -23,6 +24,7 @@ from uuid import uuid4
 
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_MUSIC_LIBRARY_CONFIG = BASE_DIR / "music_library.json"
 
 
 def load_local_env(env_path: Path | None = None) -> None:
@@ -272,6 +274,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--whisper-model", help="Whisper/whisper.cpp 模型文件路径，例如 ggml-base.bin")
     parser.add_argument("--whisper-language", default="zh", help="Whisper 识别语言，默认 zh")
     parser.add_argument("--bgm-audio", help="背景音乐文件路径，支持 mp3/wav/m4a 等 ffmpeg 可读取格式")
+    parser.add_argument("--bgm-mood", help="从本地音乐库选择 BGM 情绪标签，例如 chill / hopeful / 治愈")
+    parser.add_argument(
+        "--bgm-library-config",
+        help="本地音乐库配置 JSON，默认读取项目根目录 music_library.json 或环境变量 MUSIC_LIBRARY_CONFIG",
+    )
     parser.add_argument(
         "--bgm-volume",
         type=float,
@@ -485,6 +492,87 @@ class JobContext:
             log_path=segment_dir / "run.log.jsonl",
             segment_index=index,
         )
+
+
+@dataclass
+class MusicTrack:
+    file: str
+    path: Path
+    mood: str
+    volume: float = 0.18
+    start: float = 0.0
+
+
+def resolve_music_library_config(config_path: str | None = None) -> Path:
+    explicit_path = config_path or os.getenv("MUSIC_LIBRARY_CONFIG") or str(DEFAULT_MUSIC_LIBRARY_CONFIG)
+    return Path(explicit_path).expanduser().resolve()
+
+
+def load_music_library(config_path: str | Path | None = None, existing_only: bool = True) -> list[MusicTrack]:
+    path = resolve_music_library_config(str(config_path) if config_path else None)
+    if not path.exists():
+        return []
+
+    raw_data = json.loads(path.read_text(encoding="utf-8"))
+    raw_tracks = raw_data.get("tracks") if isinstance(raw_data, dict) else raw_data
+    if not isinstance(raw_tracks, list):
+        raise ValueError("音乐库配置格式错误，必须是数组，或包含 tracks 数组的对象。")
+
+    tracks: list[MusicTrack] = []
+    for item in raw_tracks:
+        if not isinstance(item, dict):
+            continue
+        file_name = str(item.get("file") or item.get("path") or "").strip()
+        if not file_name:
+            continue
+        music_path = resolve_music_file_path(file_name, path)
+        if existing_only and not music_path.exists():
+            continue
+        tracks.append(
+            MusicTrack(
+                file=file_name,
+                path=music_path,
+                mood=str(item.get("mood") or "default").strip() or "default",
+                volume=parse_float(item.get("volume"), 0.18),
+                start=max(0.0, parse_float(item.get("start"), 0.0)),
+            )
+        )
+    return tracks
+
+
+def resolve_music_file_path(file_name: str, config_path: Path) -> Path:
+    raw_path = Path(file_name).expanduser()
+    if raw_path.is_absolute():
+        return raw_path
+    candidates = [
+        config_path.parent / raw_path,
+        BASE_DIR / "music_library" / raw_path,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return candidates[-1].resolve()
+
+
+def parse_float(value: Any, default: float) -> float:
+    try:
+        if value is None or value == "":
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def select_music_track(mood: str | None = None, config_path: str | None = None) -> MusicTrack | None:
+    tracks = load_music_library(config_path, existing_only=True)
+    if not tracks:
+        return None
+    normalized_mood = (mood or "random").strip().lower()
+    if normalized_mood and normalized_mood not in {"random", "auto", "自动"}:
+        filtered = [track for track in tracks if track.mood.strip().lower() == normalized_mood]
+        if filtered:
+            tracks = filtered
+    return random.choice(tracks)
 
 
 class EdgeTTSProvider:
@@ -1179,6 +1267,7 @@ class AudioComposer:
         bgm_audio: Path,
         output_path: Path,
         bgm_volume: float = 0.18,
+        bgm_start: float = 0.0,
         fast_mode: bool = False,
     ) -> Path:
         if not input_video.exists():
@@ -1200,6 +1289,10 @@ class AudioComposer:
             str(input_video),
             "-stream_loop",
             "-1",
+        ]
+        if bgm_start > 0:
+            cmd += ["-ss", f"{bgm_start:.3f}"]
+        cmd += [
             "-i",
             str(bgm_audio),
             "-filter_complex",
@@ -2164,6 +2257,8 @@ def build_manifest(job: JobContext, args: argparse.Namespace) -> None:
             "whisper_model": args.whisper_model,
             "whisper_language": args.whisper_language,
             "bgm_audio": args.bgm_audio,
+            "bgm_mood": args.bgm_mood,
+            "bgm_library_config": args.bgm_library_config,
             "bgm_volume": args.bgm_volume,
             "background_mode": args.background_mode,
             "background_image": args.background_image,
@@ -2686,18 +2781,44 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
             job.final_video_path = subtitled_output
             log_event(job.log_path, "subtitles_burned", final_video_path=str(job.final_video_path))
 
-    if args.bgm_audio:
+    bgm_audio_path = Path(args.bgm_audio).resolve() if args.bgm_audio else None
+    bgm_volume = args.bgm_volume
+    bgm_start = 0.0
+    selected_bgm: MusicTrack | None = None
+    if not bgm_audio_path and args.bgm_mood:
+        selected_bgm = select_music_track(args.bgm_mood, args.bgm_library_config)
+        if not selected_bgm:
+            raise FileNotFoundError(
+                "没有找到可用的本地音乐库 BGM。请在 music_library/ 放入音频，"
+                "并参考 music_library.example.json 创建 music_library.json。"
+            )
+        bgm_audio_path = selected_bgm.path
+        bgm_volume = selected_bgm.volume
+        bgm_start = selected_bgm.start
+        print(
+            f"[提示] 已从本地音乐库选择 BGM: {selected_bgm.file} ({selected_bgm.mood})",
+            file=sys.stderr,
+        )
+
+    if bgm_audio_path:
         print("[步骤] 正在混入背景音乐...", file=sys.stderr)
         bgm_output = job.output_dir / f"{job.title}_with_bgm.mp4"
         AudioComposer().mix_bgm(
             input_video=job.final_video_path,
-            bgm_audio=Path(args.bgm_audio).resolve(),
+            bgm_audio=bgm_audio_path,
             output_path=bgm_output,
-            bgm_volume=args.bgm_volume,
+            bgm_volume=bgm_volume,
+            bgm_start=bgm_start,
             fast_mode=args.fast_mode,
         )
         job.final_video_path = bgm_output
-        log_event(job.log_path, "bgm_mixed", final_video_path=str(job.final_video_path), bgm_audio=args.bgm_audio)
+        log_event(
+            job.log_path,
+            "bgm_mixed",
+            final_video_path=str(job.final_video_path),
+            bgm_audio=str(bgm_audio_path),
+            bgm_mood=args.bgm_mood,
+        )
 
     log_event(job.log_path, "job_completed", final_video_path=str(job.final_video_path))
     return job.as_dict()

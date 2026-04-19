@@ -1106,11 +1106,26 @@ HTML_PAGE = """<!doctype html>
                     <label for="bgm-volume">BGM 音量</label>
                     <input id="bgm-volume" name="bgm_volume" type="number" step="0.01" value="0.18">
                   </div>
-                  <div class="field full">
+                  <div class="field">
+                    <label for="bgm-source">BGM 来源</label>
+                    <select id="bgm-source" name="bgm_source">
+                      <option value="none" selected>不使用 BGM</option>
+                      <option value="library">本地音乐库</option>
+                      <option value="manual">上传 / 手动路径</option>
+                    </select>
+                  </div>
+                  <div id="bgm-library-group" class="field full conditional-group">
+                    <label for="bgm-mood">音乐库情绪</label>
+                    <select id="bgm-mood" name="bgm_mood">
+                      <option value="">等待检测本地音乐库</option>
+                    </select>
+                    <span id="bgm-library-status" class="tip">把有授权的音乐放入 music_library/，并创建 music_library.json 后即可选择。</span>
+                  </div>
+                  <div id="bgm-manual-group" class="field full conditional-group">
                     <label for="bgm-audio">BGM 音频路径</label>
                     <input id="bgm-audio" name="bgm_audio" placeholder="/path/to/bgm.mp3">
                   </div>
-                  <div class="field full">
+                  <div id="bgm-upload-group" class="field full conditional-group">
                     <label for="bgm-upload">本地上传 BGM</label>
                     <input id="bgm-upload" type="file" accept="audio/*">
                     <div class="actions">
@@ -1188,6 +1203,12 @@ HTML_PAGE = """<!doctype html>
     const pexelsReadyPillEl = document.getElementById("pexels-ready-pill");
     const whisperReadyPillEl = document.getElementById("whisper-ready-pill");
     const whisperModelSelectEl = document.getElementById("whisper-model-select");
+    const bgmSourceEl = document.getElementById("bgm-source");
+    const bgmMoodEl = document.getElementById("bgm-mood");
+    const bgmLibraryStatusEl = document.getElementById("bgm-library-status");
+    const bgmLibraryGroupEl = document.getElementById("bgm-library-group");
+    const bgmManualGroupEl = document.getElementById("bgm-manual-group");
+    const bgmUploadGroupEl = document.getElementById("bgm-upload-group");
     const manualBackgroundGroupEl = document.getElementById("manual-background-group");
     const backgroundPromptGroupEl = document.getElementById("background-prompt-group");
     const pexelsCandidateGroupEl = document.getElementById("pexels-candidate-group");
@@ -1292,6 +1313,7 @@ HTML_PAGE = """<!doctype html>
     backgroundModeEl.addEventListener("change", updateModeState);
     document.getElementById("add-subtitles").addEventListener("change", updateModeState);
     document.getElementById("subtitle-provider").addEventListener("change", updateModeState);
+    bgmSourceEl.addEventListener("change", updateModeState);
     document.getElementById("whisper-model").addEventListener("input", updateModeState);
     whisperModelSelectEl.addEventListener("change", () => {
       const value = whisperModelSelectEl.value.trim();
@@ -1310,6 +1332,14 @@ HTML_PAGE = """<!doctype html>
       payload.storyboard_dynamic_backgrounds = document.getElementById("storyboard-dynamic-backgrounds").checked;
       payload.storyboard_transitions = document.getElementById("storyboard-transitions").checked;
       payload.fast_mode = document.getElementById("fast-mode").checked;
+      if (payload.bgm_source === "none") {
+        payload.bgm_audio = "";
+        payload.bgm_mood = "";
+      } else if (payload.bgm_source === "library") {
+        payload.bgm_audio = "";
+      } else {
+        payload.bgm_mood = "";
+      }
       if (payload.creation_mode === "lazy") {
         payload.auto_split = true;
         payload.storyboard_dynamic_backgrounds = payload.background_mode === "pexels-video";
@@ -1453,6 +1483,8 @@ HTML_PAGE = """<!doctype html>
         return;
       }
       document.getElementById("bgm-audio").value = result.path;
+      bgmSourceEl.value = "manual";
+      updateModeState();
       showToast("BGM 已上传并填入路径。");
     }
 
@@ -1682,6 +1714,9 @@ HTML_PAGE = """<!doctype html>
       subtitleSettingsGroupEl.classList.toggle("is-hidden", !document.getElementById("add-subtitles").checked);
       whisperSettingsGroupEl.classList.toggle("is-hidden", !document.getElementById("add-subtitles").checked || !isWhisper);
       tencentSettingsGroupEl.classList.toggle("is-hidden", videoModeEl.value !== "tencent");
+      bgmLibraryGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "library");
+      bgmManualGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "manual");
+      bgmUploadGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "manual");
       if (whisperModelConfigured) {
         whisperReadyPillEl.textContent = appConfigStatus.whisper_model
           ? "Whisper 模型已就绪"
@@ -1802,6 +1837,7 @@ HTML_PAGE = """<!doctype html>
         whisperReadyPillEl.textContent = status.whisper_model ? "Whisper 模型已就绪" : "Whisper 模型未配置";
         whisperReadyPillEl.className = `status-pill ${status.whisper_model ? "ok" : "warn"}`;
         populateWhisperModels(status.whisper_models || [], status.whisper_model_path || "");
+        populateMusicLibrary(status.music_library || {});
         updateModeState();
       } catch (error) {
         appConfigStatus = { gemini_api_key: false, pexels_api_key: false, whisper_model: false };
@@ -1814,6 +1850,19 @@ HTML_PAGE = """<!doctype html>
         pexelsReadyPillEl.className = "status-pill warn";
         whisperReadyPillEl.className = "status-pill warn";
       }
+    }
+
+    function populateMusicLibrary(library) {
+      const moods = library.moods || [];
+      bgmMoodEl.innerHTML = "";
+      if (!library.ready || moods.length === 0) {
+        bgmMoodEl.appendChild(new Option("未检测到音乐库", ""));
+        bgmLibraryStatusEl.textContent = "未检测到可用音乐。请把音频放入 music_library/，并参考 music_library.example.json 创建 music_library.json。";
+        return;
+      }
+      bgmMoodEl.appendChild(new Option(`随机选择（${library.track_count || moods.length} 首）`, "random"));
+      moods.forEach((mood) => bgmMoodEl.appendChild(new Option(mood, mood)));
+      bgmLibraryStatusEl.textContent = `已检测到 ${library.track_count} 首音乐，配置文件：${library.config_path}`;
     }
 
     function populateWhisperModels(models, configuredPath) {
@@ -1923,6 +1972,8 @@ def build_command(payload: dict[str, Any], output_dir: Path) -> list[str]:
         append_if_present(command, "--whisper-model", payload.get("whisper_model"))
         append_if_present(command, "--whisper-language", payload.get("whisper_language"))
     append_if_present(command, "--bgm-audio", payload.get("bgm_audio"))
+    append_if_present(command, "--bgm-mood", payload.get("bgm_mood"))
+    append_if_present(command, "--bgm-library-config", payload.get("bgm_library_config"))
     append_if_present(command, "--bgm-volume", payload.get("bgm_volume"))
 
     append_if_present(command, "--tencent-appkey", payload.get("tencent_appkey"))
@@ -2046,7 +2097,29 @@ def config_status() -> dict[str, Any]:
         "whisper_model": whisper_model_ready,
         "whisper_model_path": whisper_model_path,
         "whisper_models": discover_whisper_models(),
+        "music_library": music_library_status(),
         "env_path": str(BASE_DIR / ".env"),
+    }
+
+
+def music_library_status() -> dict[str, Any]:
+    config_path = pipeline_script.resolve_music_library_config(None)
+    try:
+        tracks = pipeline_script.load_music_library(config_path, existing_only=True)
+    except Exception as exc:
+        return {
+            "ready": False,
+            "config_path": str(config_path),
+            "track_count": 0,
+            "moods": [],
+            "error": str(exc),
+        }
+    moods = sorted({track.mood for track in tracks if track.mood})
+    return {
+        "ready": bool(tracks),
+        "config_path": str(config_path),
+        "track_count": len(tracks),
+        "moods": moods,
     }
 
 

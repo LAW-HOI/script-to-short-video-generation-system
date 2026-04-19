@@ -74,7 +74,7 @@
 - 同时支持 `内容短视频模式` 和 `数字人口播模式`
 - 支持 AI 生成标题、文案、背景提示词和推荐模式
 - 支持 Pexels 背景图 / 背景视频候选预览、挑选和排序
-- 支持本地上传背景素材与 BGM
+- 支持本地上传背景素材、BGM，以及按情绪标签选择本地音乐库
 - 支持自动字幕、Whisper 精准字幕和字幕偏移微调
 - 支持长文案自动分段、自动拼接和轻微转场
 - 支持网页端和命令行双入口，底层共用同一条生成链路
@@ -104,6 +104,7 @@
 - `LICENSE`: MIT 开源许可证
 - `THIRD_PARTY_NOTICES.md`: 第三方服务与素材说明
 - `PROJECT_STATUS.md`: 当前功能状态与开源检查说明
+- `music_library.example.json`: 本地音乐库配置示例，不包含真实音乐文件
 
 ## 快速开始
 
@@ -177,11 +178,46 @@ python3 video_pipeline.py \
 - Whisper 精准字幕
 - 背景图 / 背景视频 / Pexels 候选素材
 - 本地上传背景和 BGM
+- 本地音乐库：按情绪标签自动选择 BGM
 - 任务状态轮询、日志查看、成片预览与下载
 
 网页版本本质上还是调用同目录下的 `video_pipeline.py`，所以命令行版和网页版的生成结果会保持一致。
 
 `.env` 已经被 `.gitignore` 忽略，不建议把真实密钥写进 Python 源码或提交到仓库。
+
+## 本地音乐库
+
+项目不会内置音乐文件，避免版权风险。你可以把自己有权使用的音乐放入本地目录：
+
+```text
+music_library/
+├── warm_campus.mp3
+├── city_night_chill.mp3
+└── hopeful_piano.mp3
+```
+
+然后复制示例配置：
+
+```bash
+cp music_library.example.json music_library.json
+```
+
+把 `music_library.json` 改成你的真实文件名和情绪标签：
+
+```json
+{
+  "tracks": [
+    {
+      "file": "warm_campus.mp3",
+      "mood": "校园",
+      "start": 0,
+      "volume": 0.18
+    }
+  ]
+}
+```
+
+网页里的 `BGM 来源` 选择 `本地音乐库` 后，就可以按情绪标签自动挑选音乐。`music_library/` 和 `music_library.json` 默认不会提交到 GitHub。
 
 ## 推荐使用路径
 

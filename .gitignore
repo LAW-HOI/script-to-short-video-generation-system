@@ -14,6 +14,8 @@ output/
 
 # Large local models and generated media
 models/
+music_library/
+music_library.json
 digit_person.png
 download.jpeg
 *.mp4

@@ -1,0 +1,22 @@
+{
+  "tracks": [
+    {
+      "file": "warm_campus.mp3",
+      "mood": "校园",
+      "start": 0,
+      "volume": 0.18
+    },
+    {
+      "file": "city_night_chill.mp3",
+      "mood": "夜晚",
+      "start": 5,
+      "volume": 0.16
+    },
+    {
+      "file": "hopeful_piano.mp3",
+      "mood": "治愈",
+      "start": 0,
+      "volume": 0.15
+    }
+  ]
+}

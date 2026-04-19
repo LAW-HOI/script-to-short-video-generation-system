@@ -25,3 +25,5 @@ For stricter production or commercial usage, replace these remote assets with se
 ## Generated And Downloaded Assets
 
 Generated videos, downloaded Pexels media, uploaded user files, BGM files, local models, and runtime logs should stay local. They are ignored by `.gitignore` and should not be committed to the repository unless you have the right to publish them.
+
+The optional `music_library/` feature is designed for user-provided audio files. Do not add copyrighted music to the repository unless you have explicit permission to redistribute it.
