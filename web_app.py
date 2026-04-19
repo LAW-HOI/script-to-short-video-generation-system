@@ -40,7 +40,7 @@ HTML_PAGE = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI 短视频生成平台</title>
+  <title>Script2Short</title>
   <style>
     :root {
       --bg: #050711;
@@ -188,6 +188,13 @@ HTML_PAGE = """<!doctype html>
       line-height: 1.55;
       font-size: 13px;
       max-width: 760px;
+    }
+    .hero .hero-subtitle {
+      margin: -2px 0 10px;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 12px;
     }
     .hero-grid {
       display: grid;
@@ -822,7 +829,8 @@ HTML_PAGE = """<!doctype html>
             <span class="kicker">Storyboard + Avatar</span>
             <span class="kicker">Local Control Center</span>
           </div>
-          <h1>AI 短视频生成平台</h1>
+          <h1>Script2Short</h1>
+          <p class="hero-subtitle">Script-to-Short-Video Generation System</p>
           <p>在浏览器里完成文案、背景、配音、字幕和分镜配置。系统会在本地组织生成链路、轮询任务状态，并把成片、日志和中间资产完整保存到你的工作目录里。</p>
           <div class="quick-status">
             <span id="gemini-ready-pill" class="status-pill">Gemini 未检测</span>
@@ -2959,7 +2967,7 @@ class AppHandler(BaseHTTPRequestHandler):
 def main() -> None:
     port = int(os.getenv("AUTO_DIGIT_WEB_PORT", "8765"))
     server = ThreadingHTTPServer(("127.0.0.1", port), AppHandler)
-    print(f"AI 短视频生成平台已启动: http://127.0.0.1:{port}")
+    print(f"Script2Short 已启动: http://127.0.0.1:{port}")
     server.serve_forever()
 
 
