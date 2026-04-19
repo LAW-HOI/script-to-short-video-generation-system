@@ -149,20 +149,9 @@ python3 video_pipeline.py \
 - `docs/screenshots/candidates.png`
 - `docs/screenshots/jobs.png`
 
-## Privacy And GitHub Safety
+## Local-Only Files
 
-不要提交以下内容：
-
-- `.env`
-- 真实 API Key、Access Token 或个人凭据
-- `web_runs/`
-- `output/`
-- `models/`
-- `music_library/`
-- `music_library.json`
-- 未授权的图片、视频、音乐素材
-
-这些路径已经被 `.gitignore` 忽略。
+API Key、Whisper 模型、运行产物和本地音乐素材都只在本机管理。仓库已通过 `.gitignore` 排除 `.env`、`web_runs/`、`output/`、`models/`、`music_library/` 和 `music_library.json` 等本地文件，避免把密钥、大文件或未授权素材提交到 GitHub。
 
 ## Third-Party Services
 
