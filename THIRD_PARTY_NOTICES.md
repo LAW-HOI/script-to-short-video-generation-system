@@ -6,7 +6,6 @@ This project can integrate with third-party APIs and remote media sources. Users
 
 - Google Gemini API: used for AI copywriting and prompt generation when configured by the user.
 - Pexels API: used for searching background images and videos when configured by the user.
-- Tencent Cloud Digital Human API: used for digital human talking-head video generation when configured by the user.
 - Microsoft Edge TTS via `edge-tts`: used for local text-to-speech synthesis.
 - Whisper / whisper.cpp: optional local speech recognition model for more accurate subtitle timestamps.
 - FFmpeg: used for media composition, transcoding, subtitle rendering, and audio mixing.

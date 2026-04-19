@@ -3,9 +3,6 @@ from __future__ import annotations
 import argparse
 import ast
 import asyncio
-import base64
-import hashlib
-import hmac
 import json
 import os
 import random
@@ -15,12 +12,10 @@ import subprocess
 import sys
 import time
 import urllib.request
-from urllib.parse import urlencode, quote_plus
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 from typing import Any
-from uuid import uuid4
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -68,7 +63,7 @@ load_local_env()
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="AI视频自动化脚本：手动输入文案 -> 音频合成 -> 在线数字人视频生成"
+        description="Script2Short：手动输入文案 -> 语音合成 -> 背景素材编排 -> 字幕/BGM -> 短视频生成"
     )
     parser.add_argument("--title", default="auto_digit_video", help="任务名称，会用于输出文件命名")
     parser.add_argument("--text", help="直接传入文案内容")
@@ -88,75 +83,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rate", default="+0%", help="语速，例如 +10%% / -5%%")
     parser.add_argument("--volume", default="+0%", help="音量，例如 +0%% / +20%%")
     parser.add_argument(
-        "--avatar-mode",
-        default="manual",
-        choices=["manual", "webhook", "none"],
-        help="人像来源：手动提供、本地跳过、或通过 AI 接口生成",
-    )
-    parser.add_argument(
         "--video-mode",
-        default="tencent",
-        choices=["tencent", "storyboard", "local-image", "local-video", "webhook", "none"],
-        help="视频生成模式，默认 tencent 在线数字人",
-    )
-    parser.add_argument("--avatar-image", help="本地头像图片路径，用于静态口播视频")
-    parser.add_argument("--avatar-video", help="本地人物视频路径，用于循环拼接")
-    parser.add_argument("--avatar-prompt", help="AI 生成人像时使用的提示词")
-    parser.add_argument(
-        "--avatar-config",
-        help="AI 生成人像配置文件(JSON)，avatar-mode=webhook 时必填",
-    )
-    parser.add_argument(
-        "--webhook-config",
-        help="数字人 API 配置文件(JSON)，video-mode=webhook 时必填",
-    )
-    parser.add_argument("--tencent-appkey", help="腾讯云智能数智人 appkey")
-    parser.add_argument("--tencent-access-token", help="腾讯云智能数智人 access token")
-    parser.add_argument("--tencent-virtualman-key", help="腾讯云智能数智人 VirtualmanKey")
-    parser.add_argument(
-        "--tencent-driver-type",
-        default="text",
-        choices=["text", "original-voice"],
-        help="腾讯云驱动模式：text 为文本驱动，original-voice 为音频驱动",
-    )
-    parser.add_argument("--tencent-audio-url", help="腾讯云音频驱动时使用的公网音频 URL")
-    parser.add_argument(
-        "--tencent-output-format",
-        default="Mp4",
-        help="腾讯云输出格式，常见值如 Mp4 / TransparentWebm / TransparentMov",
-    )
-    parser.add_argument(
-        "--tencent-concurrency-type",
-        default="Shared",
-        choices=["Shared", "Exclusive"],
-        help="腾讯云视频生成并发类型",
-    )
-    parser.add_argument(
-        "--tencent-speed",
-        type=float,
-        default=1.0,
-        help="腾讯云文本驱动语速，官方常见范围 0.5-1.5",
-    )
-    parser.add_argument(
-        "--tencent-volume",
-        type=float,
-        default=1.0,
-        help="腾讯云文本驱动音量",
-    )
-    parser.add_argument(
-        "--tencent-list-assets",
-        action="store_true",
-        help="查询腾讯云账号下的形象资产，便于找到 VirtualmanKey",
-    )
-    parser.add_argument(
-        "--tencent-virtualman-type-code",
-        help="查询腾讯云形象资产时使用的 VirtualmanTypeCode",
-    )
-    parser.add_argument(
-        "--tencent-page-size",
-        type=int,
-        default=20,
-        help="腾讯云资产查询分页大小，默认 20",
+        default="storyboard",
+        choices=["storyboard", "none"],
+        help="视频生成模式，默认 storyboard 内容短视频",
     )
     parser.add_argument(
         "--timeout",
@@ -285,8 +215,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.18,
         help="背景音乐音量比例，默认 0.18",
     )
-    parser.add_argument("--background-image", help="绿幕替换用的背景图片路径")
-    parser.add_argument("--background-video", help="绿幕替换用的背景视频路径")
+    parser.add_argument("--background-image", help="内容短视频使用的背景图片路径")
+    parser.add_argument("--background-video", help="内容短视频使用的背景视频路径")
     parser.add_argument(
         "--background-mode",
         default="manual",
@@ -308,67 +238,67 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--background-color",
         default="0x00FF00",
-        help="绿幕色值，默认 0x00FF00",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--background-similarity",
         type=float,
         default=0.18,
-        help="抠像相似度，默认 0.18",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--background-blend",
         type=float,
         default=0.08,
-        help="抠像边缘融合值，默认 0.08",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--background-despill",
         type=float,
         default=0.10,
-        help="去绿边强度，默认 0.10",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--background-shadow",
         type=float,
         default=0.45,
-        help="人物阴影强度，默认 0.45",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--background-feather",
         type=float,
         default=0.8,
-        help="前景轻微柔化半径，默认 0.8",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--subject-scale",
         type=float,
         default=0.82,
-        help="人物缩放比例，默认 0.82",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--subject-offset-x",
         type=int,
         default=0,
-        help="人物水平偏移，默认 0",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--subject-offset-y",
         type=int,
         default=18,
-        help="人物垂直偏移，默认 18",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--subject-saturation",
         type=float,
         default=0.96,
-        help="人物饱和度，默认 0.96",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--subject-gamma",
         type=float,
         default=1.03,
-        help="人物 gamma，默认 1.03",
+        help=argparse.SUPPRESS,
     )
     return parser.parse_args(argv)
 
@@ -450,7 +380,6 @@ class JobContext:
     video_path: Path
     final_video_path: Path
     subtitle_path: Path
-    avatar_image_path: Path
     background_image_path: Path
     manifest_path: Path
     log_path: Path
@@ -465,7 +394,6 @@ class JobContext:
             "video_path": str(self.video_path),
             "final_video_path": str(self.final_video_path),
             "subtitle_path": str(self.subtitle_path),
-            "avatar_image_path": str(self.avatar_image_path),
             "background_image_path": str(self.background_image_path),
             "manifest_path": str(self.manifest_path),
             "log_path": str(self.log_path),
@@ -486,7 +414,6 @@ class JobContext:
             video_path=segment_dir / f"{segment_title}.mp4",
             final_video_path=segment_dir / f"{segment_title}_final.mp4",
             subtitle_path=segment_dir / f"{segment_title}.srt",
-            avatar_image_path=self.avatar_image_path,
             background_image_path=self.background_image_path,
             manifest_path=segment_dir / "job_manifest.json",
             log_path=segment_dir / "run.log.jsonl",
@@ -797,194 +724,6 @@ class LocalComposer:
         max_start = max(base_start, background_duration - audio_duration - 0.8)
         offset = (max(1, segment_index) - 1) * max(audio_duration * 0.37, 3.0)
         return min(base_start + offset, max_start)
-
-    def build_from_image(self, image_path: Path, audio_path: Path, output_path: Path) -> Path:
-        if not image_path.exists():
-            raise FileNotFoundError(f"头像图片不存在: {image_path}")
-
-        check_command("ffmpeg")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-loop",
-            "1",
-            "-i",
-            str(image_path),
-            "-i",
-            str(audio_path),
-            "-c:v",
-            "libx264",
-            "-tune",
-            "stillimage",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-shortest",
-            str(output_path),
-        ]
-        run_command(cmd)
-        return output_path
-
-    def build_from_video(self, avatar_video: Path, audio_path: Path, output_path: Path) -> Path:
-        if not avatar_video.exists():
-            raise FileNotFoundError(f"人物视频不存在: {avatar_video}")
-
-        check_command("ffmpeg")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(avatar_video),
-            "-i",
-            str(audio_path),
-            "-map",
-            "0:v:0",
-            "-map",
-            "1:a:0",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-shortest",
-            str(output_path),
-        ]
-        run_command(cmd)
-        return output_path
-
-
-class BackgroundComposer:
-    def replace_green_screen(
-        self,
-        foreground_video: Path,
-        output_path: Path,
-        background_image: Path | None = None,
-        background_video: Path | None = None,
-        color: str = "0x00FF00",
-        similarity: float = 0.18,
-        blend: float = 0.08,
-        despill: float = 0.18,
-        shadow: float = 0.45,
-        feather: float = 1.2,
-        subject_scale: float = 0.82,
-        subject_offset_x: int = 0,
-        subject_offset_y: int = 18,
-        subject_saturation: float = 0.96,
-        subject_gamma: float = 1.03,
-    ) -> Path:
-        if not foreground_video.exists():
-            raise FileNotFoundError(f"前景视频不存在: {foreground_video}")
-        if not background_image and not background_video:
-            raise ValueError("请提供背景图片或背景视频。")
-        if background_image and not background_image.exists():
-            raise FileNotFoundError(f"背景图片不存在: {background_image}")
-        if background_video and not background_video.exists():
-            raise FileNotFoundError(f"背景视频不存在: {background_video}")
-
-        check_command("ffmpeg")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        filter_complex = self.build_filter_complex(
-            color=color,
-            similarity=similarity,
-            blend=blend,
-            despill=despill,
-            shadow=shadow,
-            feather=feather,
-            subject_scale=subject_scale,
-            subject_offset_x=subject_offset_x,
-            subject_offset_y=subject_offset_y,
-            subject_saturation=subject_saturation,
-            subject_gamma=subject_gamma,
-        )
-        if background_video:
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-stream_loop",
-                "-1",
-                "-i",
-                str(background_video),
-                "-i",
-                str(foreground_video),
-                "-filter_complex",
-                filter_complex,
-                "-map",
-                "[v]",
-                "-map",
-                "1:a:0",
-                "-c:v",
-                "libx264",
-                "-c:a",
-                "copy",
-                "-shortest",
-                str(output_path),
-            ]
-        else:
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-loop",
-                "1",
-                "-i",
-                str(background_image),
-                "-i",
-                str(foreground_video),
-                "-filter_complex",
-                filter_complex,
-                "-map",
-                "[v]",
-                "-map",
-                "1:a:0",
-                "-c:v",
-                "libx264",
-                "-c:a",
-                "copy",
-                "-shortest",
-                str(output_path),
-        ]
-        run_command(cmd)
-        return output_path
-
-    def build_filter_complex(
-        self,
-        color: str,
-        similarity: float,
-        blend: float,
-        despill: float,
-        shadow: float,
-        feather: float,
-        subject_scale: float,
-        subject_offset_x: int,
-        subject_offset_y: int,
-        subject_saturation: float,
-        subject_gamma: float,
-    ) -> str:
-        shadow_alpha = max(0.0, min(shadow, 1.0))
-        blur_sigma = max(0.3, feather)
-        green_gain = max(0.0, 1.0 - despill)
-        scale_value = max(0.55, min(subject_scale, 1.2))
-        return (
-            f"[0:v][1:v]scale2ref[bg][fgsrc];"
-            f"[fgsrc]chromakey={color}:{similarity}:{blend},"
-            f"colorchannelmixer=gg={green_gain},"
-            f"eq=saturation={subject_saturation}:gamma={subject_gamma},"
-            f"gblur=sigma={blur_sigma},"
-            f"scale=iw*{scale_value}:ih*{scale_value}[fg];"
-            f"[fg]split[fgmain][fgshadowsrc];"
-            f"[fgshadowsrc]colorchannelmixer=aa={shadow_alpha}:rr=0:gg=0:bb=0,"
-            f"gblur=sigma={blur_sigma * 2.2}[shadow];"
-            f"[bg][shadow]overlay=(W-w)/2+{subject_offset_x + 18}:(H-h)/2+{subject_offset_y + 28}:format=auto[bgshadow];"
-            f"[bgshadow][fgmain]overlay=(W-w)/2+{subject_offset_x}:(H-h)/2+{subject_offset_y}:format=auto,format=yuv420p[v]"
-        )
-
 
 class ConcatComposer:
     def concat_videos(self, input_paths: list[Path], output_path: Path) -> Path:
@@ -1310,117 +1049,6 @@ class AudioComposer:
         ]
         run_command(cmd)
         return output_path
-
-
-class WebhookDigitalHumanProvider:
-    def __init__(self, config_path: Path) -> None:
-        if not config_path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {config_path}")
-        self.config = json.loads(config_path.read_text(encoding="utf-8"))
-
-    def generate(self, job: JobContext, timeout: int) -> Path:
-        requests = import_requests()
-        submit_url = self.config["submit_url"]
-        method = self.config.get("method", "POST").upper()
-        request_mode = self.config.get("request_mode", "json")
-        headers = render_env_mapping(self.config.get("headers", {}))
-        payload_template = self.config.get("payload_template", {})
-        payload = render_payload(payload_template, job)
-        file_handles = []
-        files = None
-        request_kwargs: dict[str, Any] = {
-            "method": method,
-            "url": submit_url,
-            "headers": headers,
-            "timeout": 60,
-        }
-
-        if request_mode == "form":
-            files = build_upload_files(self.config.get("files_template", {}), job, file_handles)
-            request_kwargs["data"] = flatten_form_payload(payload)
-            if files:
-                request_kwargs["files"] = files
-        else:
-            request_kwargs["json"] = payload
-
-        try:
-            response = requests.request(**request_kwargs)
-        finally:
-            for handle in file_handles:
-                handle.close()
-        response.raise_for_status()
-        submit_data = response.json()
-
-        job_id = read_json_path(submit_data, self.config.get("job_id_field", "id"))
-        if not job_id:
-            raise RuntimeError("提交成功，但没有在响应中找到 job_id。")
-
-        status_url_template = self.config["status_url"]
-        status_url = Template(status_url_template).safe_substitute(job_id=job_id)
-        status_field = self.config.get("status_field", "status")
-        result_url_field = self.config.get("result_url_field", "video_url")
-        done_values = set(self.config.get("done_values", ["success", "completed"]))
-        error_values = set(self.config.get("error_values", ["failed", "error"]))
-        poll_interval = int(self.config.get("poll_interval", 8))
-
-        start = time.time()
-        while time.time() - start < timeout:
-            poll_response = requests.get(status_url, headers=headers, timeout=60)
-            poll_response.raise_for_status()
-            poll_data = poll_response.json()
-
-            status = str(read_json_path(poll_data, status_field))
-            if status in done_values:
-                video_url = read_json_path(poll_data, result_url_field)
-                if not video_url:
-                    raise RuntimeError("任务已完成，但没有找到视频下载地址。")
-                download_file(video_url, job.video_path)
-                return job.video_path
-
-            if status in error_values:
-                raise RuntimeError(f"数字人任务失败，状态: {status}，响应: {poll_data}")
-
-            print(f"[轮询] 当前状态: {status}，{poll_interval} 秒后重试...", file=sys.stderr)
-            time.sleep(poll_interval)
-
-        raise TimeoutError(f"等待数字人视频生成超时，已等待 {timeout} 秒。")
-
-
-class WebhookAvatarProvider:
-    def __init__(self, config_path: Path) -> None:
-        if not config_path.exists():
-            raise FileNotFoundError(f"配置文件不存在: {config_path}")
-        self.config = json.loads(config_path.read_text(encoding="utf-8"))
-
-    def generate(self, job: JobContext, prompt: str) -> Path:
-        requests = import_requests()
-        submit_url = self.config["submit_url"]
-        method = self.config.get("method", "POST").upper()
-        request_mode = self.config.get("request_mode", "json")
-        headers = render_env_mapping(self.config.get("headers", {}))
-        payload_template = self.config.get("payload_template", {})
-        payload = render_payload(payload_template, job, avatar_prompt=prompt)
-        request_kwargs: dict[str, Any] = {
-            "method": method,
-            "url": submit_url,
-            "headers": headers,
-            "timeout": 60,
-        }
-        if request_mode == "form":
-            request_kwargs["data"] = flatten_form_payload(payload)
-        else:
-            request_kwargs["json"] = payload
-
-        response = requests.request(**request_kwargs)
-        response.raise_for_status()
-        data = response.json()
-
-        image_url = read_json_path(data, self.config.get("image_url_field", "data.url"))
-        if not image_url:
-            raise RuntimeError(f"AI 人像生成成功，但没有找到图片地址。响应: {data}")
-
-        download_file(image_url, job.avatar_image_path)
-        return job.avatar_image_path
 
 
 class WebhookBackgroundProvider:
@@ -1787,158 +1415,6 @@ class PexelsVideoBackgroundProvider(PexelsBaseProvider):
         return min(landscape_files, key=lambda item: int(item.get("width") or 99999) * int(item.get("height") or 99999))
 
 
-class TencentDigitalHumanProvider:
-    base_url = "https://gw.tvs.qq.com"
-
-    def __init__(self, appkey: str, access_token: str, retry_count: int = 3, retry_delay: int = 5) -> None:
-        self.appkey = appkey
-        self.access_token = access_token
-        self.requests = import_requests()
-        self.retry_count = retry_count
-        self.retry_delay = retry_delay
-
-    def list_assets(self, virtualman_type_code: str, page_size: int = 20) -> dict[str, Any]:
-        payload = {
-            "Header": {},
-            "Payload": {
-                "VirtualmanTypeCode": virtualman_type_code,
-                "PageIndex": 1,
-                "PageSize": page_size,
-            },
-        }
-        return self._post("/v2/ivh/crmserver/customerassetservice/getimagebyanchor", payload)
-
-    def generate(
-        self,
-        job: JobContext,
-        virtualman_key: str,
-        driver_type: str,
-        output_format: str,
-        concurrency_type: str,
-        speed: float,
-        volume: float,
-        timeout: int,
-        input_audio_url: str | None = None,
-    ) -> Path:
-        driver_type_mapping = {
-            "text": "Text",
-            "original-voice": "OriginalVoice",
-        }
-        api_driver_type = driver_type_mapping[driver_type]
-        payload_body: dict[str, Any] = {
-            "VirtualmanKey": virtualman_key,
-            "DriverType": api_driver_type,
-            "VideoParam": {
-                "Format": output_format,
-            },
-            "ConcurrencyType": concurrency_type,
-            "ReqId": uuid4().hex,
-        }
-
-        if api_driver_type == "Text":
-            payload_body["InputSsml"] = job.script
-            payload_body["SpeechParam"] = {
-                "Speed": speed,
-                "Volume": volume,
-            }
-        else:
-            if not input_audio_url:
-                raise ValueError("腾讯云音频驱动模式必须提供 --tencent-audio-url")
-            payload_body["InputAudioUrl"] = input_audio_url
-
-        submit_data = self._post(
-            "/v2/ivh/videomaker/broadcastservice/videomake",
-            {"Header": {}, "Payload": payload_body},
-        )
-        self._raise_on_api_error(submit_data)
-        task_id = read_json_path(submit_data, "Payload.TaskId")
-        if not task_id:
-            raise RuntimeError(f"腾讯云提交成功，但没有返回 TaskId。响应: {submit_data}")
-
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            progress_data = self._post(
-                "/v2/ivh/videomaker/broadcastservice/getprogress",
-                {"Header": {}, "Payload": {"TaskId": task_id}},
-            )
-            self._raise_on_api_error(progress_data)
-            status = str(read_json_path(progress_data, "Payload.Status") or "")
-            progress = read_json_path(progress_data, "Payload.Progress")
-            if status == "SUCCESS":
-                media_url = read_json_path(progress_data, "Payload.MediaUrl")
-                if not media_url:
-                    raise RuntimeError(f"腾讯云任务成功，但没有返回 MediaUrl。响应: {progress_data}")
-                download_file(str(media_url), job.video_path)
-                return job.video_path
-
-            if status == "FAIL" or progress == -1:
-                fail_code = read_json_path(progress_data, "Payload.FailCode")
-                fail_message = read_json_path(progress_data, "Payload.FailMessage")
-                raise RuntimeError(
-                    f"腾讯云视频生成失败，FailCode={fail_code}，FailMessage={fail_message}"
-                )
-
-            print(
-                f"[轮询] 腾讯云任务状态: {status or 'UNKNOWN'}，进度: {progress}，8 秒后重试...",
-                file=sys.stderr,
-            )
-            time.sleep(8)
-
-        raise TimeoutError(f"等待腾讯云视频生成超时，已等待 {timeout} 秒。")
-
-    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        url = self._signed_url(path)
-        return self._request_with_retry(url, payload)
-
-    def _signed_url(self, path: str) -> str:
-        timestamp = str(int(time.time()))
-        query_params = {
-            "appkey": self.appkey,
-            "timestamp": timestamp,
-        }
-        signing_content = "&".join(
-            f"{key}={query_params[key]}" for key in sorted(query_params.keys())
-        )
-        digest = hmac.new(
-            self.access_token.encode("utf-8"),
-            signing_content.encode("utf-8"),
-            hashlib.sha256,
-        ).digest()
-        signature = quote_plus(base64.b64encode(digest).decode("utf-8"))
-        return f"{self.base_url}{path}?{urlencode(query_params)}&signature={signature}"
-
-    def _raise_on_api_error(self, data: dict[str, Any]) -> None:
-        code = read_json_path(data, "Header.Code")
-        if code in (None, 0):
-            return
-        message = read_json_path(data, "Header.Message")
-        request_id = read_json_path(data, "Header.RequestID")
-        raise RuntimeError(f"腾讯云接口返回错误，Code={code}，Message={message}，RequestID={request_id}")
-
-    def _request_with_retry(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        last_error: Exception | None = None
-        for attempt in range(1, self.retry_count + 1):
-            try:
-                response = self.requests.post(
-                    url,
-                    json=payload,
-                    headers={"Content-Type": "application/json;charset=utf-8"},
-                    timeout=60,
-                )
-                response.raise_for_status()
-                return response.json()
-            except Exception as exc:
-                last_error = exc
-                if attempt >= self.retry_count:
-                    break
-                print(
-                    f"[重试] 腾讯云请求失败，第 {attempt} 次重试后仍未成功，{self.retry_delay} 秒后继续...",
-                    file=sys.stderr,
-                )
-                time.sleep(self.retry_delay)
-        raise RuntimeError(f"腾讯云请求失败，已重试 {self.retry_count} 次。原始错误: {last_error}")
-
-
 def import_requests() -> Any:
     try:
         import requests
@@ -2005,7 +1481,6 @@ def build_upload_files(
 def render_payload(
     template_data: Any,
     job: JobContext,
-    avatar_prompt: str = "",
     background_prompt: str = "",
 ) -> Any:
     context = {
@@ -2013,9 +1488,7 @@ def render_payload(
         "script": job.script,
         "audio_file_path": str(job.audio_path),
         "video_file_path": str(job.video_path),
-        "avatar_file_path": str(job.avatar_image_path),
         "background_file_path": str(job.background_image_path),
-        "avatar_prompt": avatar_prompt,
         "background_prompt": background_prompt,
     }
 
@@ -2024,7 +1497,6 @@ def render_payload(
             key: render_payload(
                 value,
                 job,
-                avatar_prompt=avatar_prompt,
                 background_prompt=background_prompt,
             )
             for key, value in template_data.items()
@@ -2034,7 +1506,6 @@ def render_payload(
             render_payload(
                 item,
                 job,
-                avatar_prompt=avatar_prompt,
                 background_prompt=background_prompt,
             )
             for item in template_data
@@ -2228,19 +1699,10 @@ def build_manifest(job: JobContext, args: argparse.Namespace) -> None:
         "job": job.as_dict(),
         "settings": {
             "tts_provider": args.tts_provider,
-            "avatar_mode": args.avatar_mode,
             "video_mode": args.video_mode,
             "voice": args.voice,
             "rate": args.rate,
             "volume": args.volume,
-            "avatar_image": args.avatar_image,
-            "avatar_prompt": args.avatar_prompt,
-            "avatar_config": args.avatar_config,
-            "avatar_video": args.avatar_video,
-            "webhook_config": args.webhook_config,
-            "tencent_driver_type": args.tencent_driver_type,
-            "tencent_virtualman_key": args.tencent_virtualman_key,
-            "tencent_output_format": args.tencent_output_format,
             "retry_count": args.retry_count,
             "retry_delay": args.retry_delay,
             "auto_split": args.auto_split,
@@ -2402,43 +1864,17 @@ def prepare_background_assets(job: JobContext, args: argparse.Namespace, prompt_
     return prepared_args
 
 
-def validate_tencent_requirements(args: argparse.Namespace) -> None:
-    if args.video_mode != "tencent" or args.tencent_list_assets:
-        return
-    appkey = args.tencent_appkey or os.getenv("TENCENT_DH_APPKEY")
-    access_token = args.tencent_access_token or os.getenv("TENCENT_DH_ACCESS_TOKEN")
-    virtualman_key = args.tencent_virtualman_key or os.getenv("TENCENT_DH_VIRTUALMAN_KEY")
-    missing: list[str] = []
-    if not appkey:
-        missing.append("--tencent-appkey 或环境变量 TENCENT_DH_APPKEY")
-    if not access_token:
-        missing.append("--tencent-access-token 或环境变量 TENCENT_DH_ACCESS_TOKEN")
-    if not virtualman_key:
-        missing.append("--tencent-virtualman-key 或环境变量 TENCENT_DH_VIRTUALMAN_KEY")
-    if missing:
-        raise ValueError("video-mode=tencent 缺少腾讯云参数：" + "；".join(missing))
-
-
 def render_video(job: JobContext, args: argparse.Namespace) -> Path:
-    effective_subject_offset_y = args.subject_offset_y
-    if args.add_subtitles:
-        effective_subject_offset_y -= args.subtitle_safe_lift
     resolved_background_image = (
         Path(args.background_image).resolve()
         if args.background_image
         else job.background_image_path if job.background_image_path.exists() else None
     )
     resolved_background_video = Path(args.background_video).resolve() if args.background_video else None
-    if args.video_mode == "local-image":
-        if not job.avatar_image_path.exists():
-            raise ValueError("未找到可用的人像图片，请提供 --avatar-image 或使用 --avatar-mode webhook")
-        print("[步骤] 正在使用人像图片合成视频...", file=sys.stderr)
-        LocalComposer().build_from_image(job.avatar_image_path, job.audio_path, job.video_path)
-        log_event(job.log_path, "video_rendered_local_image", video_path=str(job.video_path))
-    elif args.video_mode == "storyboard":
+    if args.video_mode == "storyboard":
         storyboard_playlist = getattr(args, "_storyboard_background_playlist", None)
         if storyboard_playlist:
-            print("[步骤] 正在生成无数字人短视频（背景视频序列 + 配音）...", file=sys.stderr)
+            print("[步骤] 正在生成短视频（背景视频序列 + 配音）...", file=sys.stderr)
             LocalComposer().build_story_from_video_playlist(
                 storyboard_playlist,
                 job.audio_path,
@@ -2447,7 +1883,7 @@ def render_video(job: JobContext, args: argparse.Namespace) -> Path:
                 fast_mode=args.fast_mode,
             )
         elif resolved_background_video:
-            print("[步骤] 正在生成无数字人短视频（背景视频 + 配音）...", file=sys.stderr)
+            print("[步骤] 正在生成短视频（背景视频 + 配音）...", file=sys.stderr)
             LocalComposer().build_story_from_video(
                 resolved_background_video,
                 job.audio_path,
@@ -2457,7 +1893,7 @@ def render_video(job: JobContext, args: argparse.Namespace) -> Path:
                 segment_index=job.segment_index or 1,
             )
         elif resolved_background_image:
-            print("[步骤] 正在生成无数字人短视频（背景图 + 配音）...", file=sys.stderr)
+            print("[步骤] 正在生成短视频（背景图 + 配音）...", file=sys.stderr)
             LocalComposer().build_story_from_image(
                 resolved_background_image,
                 job.audio_path,
@@ -2468,89 +1904,17 @@ def render_video(job: JobContext, args: argparse.Namespace) -> Path:
             raise ValueError("video-mode=storyboard 时必须提供背景图或背景视频。")
         job.final_video_path = job.video_path
         log_event(job.log_path, "video_rendered_storyboard", video_path=str(job.video_path))
-    elif args.video_mode == "local-video":
-        if not args.avatar_video:
-            raise ValueError("video-mode=local-video 时必须提供 --avatar-video")
-        print("[步骤] 正在使用本地人物视频合成视频...", file=sys.stderr)
-        LocalComposer().build_from_video(Path(args.avatar_video), job.audio_path, job.video_path)
-        log_event(job.log_path, "video_rendered_local_video", video_path=str(job.video_path))
-    elif args.video_mode == "webhook":
-        if not args.webhook_config:
-            raise ValueError("video-mode=webhook 时必须提供 --webhook-config")
-        print("[步骤] 正在调用数字人 API 生成视频...", file=sys.stderr)
-        WebhookDigitalHumanProvider(Path(args.webhook_config)).generate(job, timeout=args.timeout)
-        log_event(job.log_path, "video_rendered_webhook", video_path=str(job.video_path))
-    elif args.video_mode == "tencent":
-        appkey = args.tencent_appkey or os.getenv("TENCENT_DH_APPKEY")
-        access_token = args.tencent_access_token or os.getenv("TENCENT_DH_ACCESS_TOKEN")
-        virtualman_key = args.tencent_virtualman_key or os.getenv("TENCENT_DH_VIRTUALMAN_KEY")
-        if not appkey:
-            raise ValueError("video-mode=tencent 时必须提供 --tencent-appkey 或环境变量 TENCENT_DH_APPKEY")
-        if not access_token:
-            raise ValueError(
-                "video-mode=tencent 时必须提供 --tencent-access-token 或环境变量 TENCENT_DH_ACCESS_TOKEN"
-            )
-        if not virtualman_key:
-            raise ValueError(
-                "video-mode=tencent 时必须提供 --tencent-virtualman-key 或环境变量 TENCENT_DH_VIRTUALMAN_KEY"
-            )
-        print("[步骤] 正在调用腾讯云智能数智人生成视频...", file=sys.stderr)
-        TencentDigitalHumanProvider(
-            appkey,
-            access_token,
-            retry_count=args.retry_count,
-            retry_delay=args.retry_delay,
-        ).generate(
-            job=job,
-            virtualman_key=virtualman_key,
-            driver_type=args.tencent_driver_type,
-            output_format=args.tencent_output_format,
-            concurrency_type=args.tencent_concurrency_type,
-            speed=args.tencent_speed,
-            volume=args.tencent_volume,
-            timeout=args.timeout,
-            input_audio_url=args.tencent_audio_url,
-        )
-        log_event(job.log_path, "video_rendered_tencent", video_path=str(job.video_path))
-    else:
+    elif args.video_mode == "none":
         print("[步骤] 跳过视频生成。", file=sys.stderr)
-
-    if args.video_mode == "storyboard":
-        return job.final_video_path
-
-    if args.background_image or args.background_video or job.background_image_path.exists():
-        print("[步骤] 正在替换绿幕背景...", file=sys.stderr)
-        BackgroundComposer().replace_green_screen(
-            foreground_video=job.video_path,
-            output_path=job.final_video_path,
-            background_image=resolved_background_image,
-            background_video=resolved_background_video,
-            color=args.background_color,
-            similarity=args.background_similarity,
-            blend=args.background_blend,
-            despill=args.background_despill,
-            shadow=args.background_shadow,
-            feather=args.background_feather,
-            subject_scale=args.subject_scale,
-            subject_offset_x=args.subject_offset_x,
-            subject_offset_y=effective_subject_offset_y,
-            subject_saturation=args.subject_saturation,
-            subject_gamma=args.subject_gamma,
-        )
-        log_event(job.log_path, "background_replaced", final_video_path=str(job.final_video_path))
     else:
-        job.final_video_path = job.video_path
+        raise ValueError(f"不支持的视频模式: {args.video_mode}")
     return job.final_video_path
 
 
 def process_segment_job(job: JobContext, args: argparse.Namespace) -> Path:
     job.output_dir.mkdir(parents=True, exist_ok=True)
     log_event(job.log_path, "segment_started", title=job.title)
-    should_run_tts = True
-    if args.video_mode == "tencent" and args.tencent_driver_type == "text":
-        should_run_tts = False
-
-    if should_run_tts and args.tts_provider == "edge":
+    if args.tts_provider == "edge":
         print("[步骤] 正在合成音频...", file=sys.stderr)
         asyncio.run(
             EdgeTTSProvider().synthesize(
@@ -2604,7 +1968,7 @@ def generate_subtitles_for_job(
 
 def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
     script = load_script_text(args)
-    if not script and not args.tencent_list_assets:
+    if not script:
         raise ValueError("文案为空，请传入 --text 或输入有效内容。")
 
     title = slugify(args.title)
@@ -2613,7 +1977,6 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
     video_path = output_dir / f"{title}.mp4"
     final_video_path = output_dir / f"{title}_final.mp4"
     subtitle_path = output_dir / f"{title}.srt"
-    avatar_image_path = output_dir / f"{title}_avatar.png"
     background_image_path = output_dir / f"{title}_background.png"
     manifest_path = output_dir / "job_manifest.json"
     log_path = output_dir / "run.log.jsonl"
@@ -2627,48 +1990,17 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
         video_path=video_path,
         final_video_path=final_video_path,
         subtitle_path=subtitle_path,
-        avatar_image_path=avatar_image_path,
         background_image_path=background_image_path,
         manifest_path=manifest_path,
         log_path=log_path,
     )
     log_event(job.log_path, "job_started", title=job.title, video_mode=args.video_mode)
 
-    if args.avatar_mode == "manual" and args.avatar_image:
-        job.avatar_image_path = Path(args.avatar_image).resolve()
-    elif args.avatar_mode == "webhook":
-        if not args.avatar_config:
-            raise ValueError("avatar-mode=webhook 时必须提供 --avatar-config")
-        if not args.avatar_prompt:
-            raise ValueError("avatar-mode=webhook 时必须提供 --avatar-prompt")
-        print("[步骤] 正在通过 AI 接口生成人像...", file=sys.stderr)
-        WebhookAvatarProvider(Path(args.avatar_config)).generate(job, prompt=args.avatar_prompt)
-        log_event(job.log_path, "avatar_generated", avatar_path=str(job.avatar_image_path))
-    elif args.avatar_mode == "manual" and not args.avatar_image and args.video_mode == "local-image":
-        raise ValueError("video-mode=local-image 时必须提供 --avatar-image，或改用 --avatar-mode webhook")
-
-    validate_tencent_requirements(args)
-
     dynamic_storyboard_backgrounds = (
         args.video_mode == "storyboard" and args.auto_split and args.storyboard_dynamic_backgrounds
     )
     if not dynamic_storyboard_backgrounds:
         args = prepare_background_assets(job, args)
-
-    if args.video_mode == "tencent" and args.tencent_list_assets:
-        appkey = args.tencent_appkey or os.getenv("TENCENT_DH_APPKEY")
-        access_token = args.tencent_access_token or os.getenv("TENCENT_DH_ACCESS_TOKEN")
-        if not appkey or not access_token:
-            raise ValueError("查询腾讯云资产前，请提供 --tencent-appkey 和 --tencent-access-token")
-        if not args.tencent_virtualman_type_code:
-            raise ValueError("查询腾讯云资产时必须提供 --tencent-virtualman-type-code")
-        provider = TencentDigitalHumanProvider(appkey, access_token)
-        asset_data = provider.list_assets(
-            virtualman_type_code=args.tencent_virtualman_type_code,
-            page_size=args.tencent_page_size,
-        )
-        log_event(job.log_path, "tencent_assets_listed", virtualman_type_code=args.tencent_virtualman_type_code)
-        return asset_data
 
     if args.auto_split:
         segments = split_script_text(job.script, args.split_max_chars)

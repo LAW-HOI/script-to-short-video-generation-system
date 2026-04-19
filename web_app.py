@@ -826,7 +826,7 @@ HTML_PAGE = """<!doctype html>
         <div>
           <div class="hero-kickers">
             <span class="kicker">AI Video Lab</span>
-            <span class="kicker">Storyboard + Avatar</span>
+            <span class="kicker">Storyboard Automation</span>
             <span class="kicker">Local Control Center</span>
           </div>
           <h1>Script2Short</h1>
@@ -841,7 +841,7 @@ HTML_PAGE = """<!doctype html>
         <div class="hero-metrics">
           <div class="metric">
             <strong>2</strong>
-            <span>生成路线：数字人口播 / 内容短视频</span>
+            <span>生成路线：文案 / 配音 / 字幕 / 背景 / BGM</span>
           </div>
           <div class="metric">
             <strong>Pexels</strong>
@@ -877,8 +877,7 @@ HTML_PAGE = """<!doctype html>
                   <div class="field">
                     <label for="video-mode">视频模式</label>
                     <select id="video-mode" name="video_mode">
-                      <option value="storyboard">内容短视频模式（无数字人）</option>
-                      <option value="tencent">腾讯云数字人口播</option>
+                      <option value="storyboard" selected>内容短视频模式</option>
                     </select>
                   </div>
                   <div class="field full">
@@ -1015,7 +1014,7 @@ HTML_PAGE = """<!doctype html>
 
               <section class="form-section" id="section-output">
                 <h3>输出与高级参数</h3>
-                <p class="section-intro">这里放声音、字幕、Whisper 精准字幕、BGM 和腾讯云参数。默认值已经偏向易用，不必每次都调。</p>
+                <p class="section-intro">这里放声音、字幕、Whisper 精准字幕和 BGM。默认值已经偏向易用，不必每次都调。</p>
                 <div class="section-grid">
                   <div class="field">
                     <label for="voice">配音音色</label>
@@ -1026,14 +1025,14 @@ HTML_PAGE = """<!doctype html>
                       <button class="style-pill" type="button" data-voice-filter="dialect">方言</button>
                     </div>
                     <select id="voice" name="voice">
-                      <option value="zh-CN-XiaoxiaoNeural" data-group="female" data-note="温柔自然，适合治愈系和日常口播。">晓晓 · 温柔女声</option>
+                      <option value="zh-CN-XiaoxiaoNeural" data-group="female" data-note="温柔自然，适合治愈系和日常旁白。">晓晓 · 温柔女声</option>
                       <option value="zh-CN-XiaoyiNeural" data-group="female" data-note="更轻柔一些，适合情绪感和旁白。">晓伊 · 轻柔女声</option>
                       <option value="zh-CN-YunxiNeural" data-group="male" data-note="沉稳成熟，适合叙事和知识表达。">云希 · 沉稳男声</option>
                       <option value="zh-CN-YunjianNeural" data-group="male" data-note="更年轻利落，适合科技和效率内容。">云健 · 青年男声</option>
                       <option value="zh-CN-liaoning-XiaobeiNeural" data-group="dialect" data-note="带地域感，更有生活气和辨识度。">晓北 · 东北女声</option>
                       <option value="zh-CN-shaanxi-XiaoniNeural" data-group="dialect" data-note="风格鲜明，适合有个性的轻内容表达。">晓妮 · 陕西女声</option>
                     </select>
-                    <div id="voice-note" class="voice-note">温柔自然，适合治愈系和日常口播。</div>
+                    <div id="voice-note" class="voice-note">温柔自然，适合治愈系和日常旁白。</div>
                     <div class="actions">
                       <button class="ghost" type="button" id="preview-voice">试听 5 秒</button>
                     </div>
@@ -1148,25 +1147,11 @@ HTML_PAGE = """<!doctype html>
                     <label for="storyboard-video-trim-start">背景视频起始裁切</label>
                     <input id="storyboard-video-trim-start" name="storyboard_video_trim_start" type="number" step="0.1" value="0.4">
                   </div>
-                  <div id="tencent-settings-group" class="conditional-group">
-                  <div class="field">
-                    <label for="tencent-appkey">腾讯云 AppKey</label>
-                    <input id="tencent-appkey" name="tencent_appkey" placeholder="留空则读取环境变量">
-                  </div>
-                  <div class="field">
-                    <label for="tencent-access-token">腾讯云 Access Token</label>
-                    <input id="tencent-access-token" name="tencent_access_token" placeholder="留空则读取环境变量">
-                  </div>
-                  <div class="field full">
-                    <label for="tencent-virtualman-key">腾讯云 VirtualmanKey</label>
-                    <input id="tencent-virtualman-key" name="tencent_virtualman_key" placeholder="留空则读取环境变量">
-                  </div>
-                  </div>
                 </div>
               </section>
             </div>
             <div class="submit-bar">
-              <div class="submit-copy">留空的 Gemini、Pexels、腾讯云字段会优先读取本地 `.env` 或环境变量。页面与命令行共用同一条生成链路。</div>
+              <div class="submit-copy">留空的 Gemini、Pexels 字段会优先读取本地 `.env` 或环境变量。页面与命令行共用同一条生成链路。</div>
               <button class="primary" type="submit" id="submit-job">开始生成</button>
             </div>
           </form>
@@ -1224,7 +1209,6 @@ HTML_PAGE = """<!doctype html>
     const webhookBackgroundConfigGroupEl = document.getElementById("webhook-background-config-group");
     const subtitleSettingsGroupEl = document.getElementById("subtitle-settings-group");
     const whisperSettingsGroupEl = document.getElementById("whisper-settings-group");
-    const tencentSettingsGroupEl = document.getElementById("tencent-settings-group");
     const demoText = `凌晨三点的便利店，是都市最后的温柔乡。
 霓虹灯在雨后的地面碎成星河，你捧着一杯热咖啡站在落地窗前，看这座永不沉睡的城。有人刚结束加班，有人正开始狂欢，而你的故事，藏在第47次深夜独处的沉默里。
 我们总以为生活是一场马拉松，其实它更像深夜街头的自动贩卖机。你永远不知道下一罐会掉落什么口味，但冰凉的触感，总能让人清醒。
@@ -1721,7 +1705,6 @@ HTML_PAGE = """<!doctype html>
       webhookBackgroundConfigGroupEl.classList.toggle("is-hidden", backgroundMode !== "webhook");
       subtitleSettingsGroupEl.classList.toggle("is-hidden", !document.getElementById("add-subtitles").checked);
       whisperSettingsGroupEl.classList.toggle("is-hidden", !document.getElementById("add-subtitles").checked || !isWhisper);
-      tencentSettingsGroupEl.classList.toggle("is-hidden", videoModeEl.value !== "tencent");
       bgmLibraryGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "library");
       bgmManualGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "manual");
       bgmUploadGroupEl.classList.toggle("is-hidden", bgmSourceEl.value !== "manual");
@@ -1984,10 +1967,6 @@ def build_command(payload: dict[str, Any], output_dir: Path) -> list[str]:
     append_if_present(command, "--bgm-library-config", payload.get("bgm_library_config"))
     append_if_present(command, "--bgm-volume", payload.get("bgm_volume"))
 
-    append_if_present(command, "--tencent-appkey", payload.get("tencent_appkey"))
-    append_if_present(command, "--tencent-access-token", payload.get("tencent_access_token"))
-    append_if_present(command, "--tencent-virtualman-key", payload.get("tencent_virtualman_key"))
-
     background_mode = payload.get("background_mode") or "manual"
     video_mode = str(payload.get("video_mode") or "storyboard")
     has_manual_background = bool(str(payload.get("background_image") or "").strip() or str(payload.get("background_video") or "").strip())
@@ -2028,21 +2007,8 @@ def build_command(payload: dict[str, Any], output_dir: Path) -> list[str]:
 
 def validate_job_payload(payload: dict[str, Any]) -> None:
     video_mode = str(payload.get("video_mode") or "storyboard")
-    if video_mode != "tencent":
-        return
-    missing: list[str] = []
-    if not resolve_secret(payload.get("tencent_appkey"), "TENCENT_DH_APPKEY"):
-        missing.append("腾讯云 AppKey")
-    if not resolve_secret(payload.get("tencent_access_token"), "TENCENT_DH_ACCESS_TOKEN"):
-        missing.append("腾讯云 Access Token")
-    if not resolve_secret(payload.get("tencent_virtualman_key"), "TENCENT_DH_VIRTUALMAN_KEY"):
-        missing.append("腾讯云 VirtualmanKey")
-    if missing:
-        raise ValueError(
-            "数字人口播模式缺少参数："
-            + "、".join(missing)
-            + "。请在页面填写，或在 .env 中配置 TENCENT_DH_APPKEY / TENCENT_DH_ACCESS_TOKEN / TENCENT_DH_VIRTUALMAN_KEY。"
-        )
+    if video_mode != "storyboard":
+        raise ValueError("当前版本仅支持内容短视频模式。")
 
 
 def append_if_present(command: list[str], flag: str, value: Any) -> None:
@@ -2191,7 +2157,7 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
     style_instructions = {
         "healing": "整体气质温柔、治愈、有画面感，适合情绪向短视频。",
         "tech": "整体气质冷静、未来感、节奏利落，适合 AI、科技、效率主题短视频。",
-        "product": "整体气质清晰、直接、可信，适合产品介绍、功能讲解、品牌口播。",
+        "product": "整体气质清晰、直接、可信，适合产品介绍、功能讲解、品牌旁白。",
     }
     selected_style_instruction = style_instructions.get(style, style_instructions["healing"])
     requests = pipeline_script.import_requests()
@@ -2204,15 +2170,14 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
                     "不要输出任何 JSON 之外的解释。"
                     "JSON 必须包含四个字段："
                     "title: 简短的视频标题或任务名，8 到 16 个中文字符，不要标点堆砌；"
-                    "script: 可直接用于口播的中文文案；"
+                    "script: 可直接用于配音旁白的中文文案；"
                     "background_prompt: 适合 Pexels 检索的英文背景提示词；"
-                    "recommended_video_mode: 只能是 storyboard 或 tencent。"
+                    "recommended_video_mode: 固定返回 storyboard。"
                         "要求：script 自然、连贯、有画面感；不要标题，不要编号；"
                         "输出 6 到 10 句，适合 30 到 60 秒短视频；"
                         "句子长度适中，便于后续自动分段和字幕生成。"
                         "background_prompt 要具体、克制、适合真实素材检索，优先场景名词，少用抽象形容词。"
-                        "如果内容更依赖氛围、画面、旁白、场景切换，recommended_video_mode 设为 storyboard；"
-                        "如果内容更适合真人/主播/口播讲解，recommended_video_mode 设为 tencent。"
+                        "recommended_video_mode 固定设为 storyboard。"
                         f"{selected_style_instruction}"
                     )
                 }
@@ -2247,7 +2212,7 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
     recommended_video_mode = normalize_ai_text(result.get("recommended_video_mode"), separator=" ").strip().lower()
     if not script:
         raise RuntimeError("AI 返回成功，但缺少 script 字段。")
-    if recommended_video_mode not in {"storyboard", "tencent"}:
+    if recommended_video_mode != "storyboard":
         recommended_video_mode = "storyboard"
     return {
         "title": title,
