@@ -1039,6 +1039,9 @@ HTML_PAGE = """<!doctype html>
                       <option value="zh-CN-YunjianNeural" data-lang="zh" data-group="male" data-note="更年轻利落，适合科技和效率内容。">云健 · 青年男声</option>
                       <option value="zh-CN-liaoning-XiaobeiNeural" data-lang="zh" data-group="dialect" data-note="带地域感，更有生活气和辨识度。">晓北 · 东北女声</option>
                       <option value="zh-CN-shaanxi-XiaoniNeural" data-lang="zh" data-group="dialect" data-note="风格鲜明，适合有个性的轻内容表达。">晓妮 · 陕西女声</option>
+                      <option value="zh-HK-HiuGaaiNeural" data-lang="zh" data-group="dialect" data-note="粤语女声，语气自然清晰，适合生活感和城市叙事。">曉佳 · 粤语女声</option>
+                      <option value="zh-HK-HiuMaanNeural" data-lang="zh" data-group="dialect" data-note="粤语女声，声音更柔和，适合温暖、情绪向旁白。">曉曼 · 粤语女声</option>
+                      <option value="zh-HK-WanLungNeural" data-lang="zh" data-group="dialect" data-note="粤语男声，稳重成熟，适合故事感和纪录片式旁白。">雲龍 · 粤语男声</option>
                       <option value="en-US-JennyNeural" data-lang="en" data-group="female" data-note="Warm and natural American English voice, good for emotional narration.">Jenny · English female</option>
                       <option value="en-US-AriaNeural" data-lang="en" data-group="female" data-note="Clear, bright American English voice, good for lifestyle and story videos.">Aria · English female</option>
                       <option value="en-US-GuyNeural" data-lang="en" data-group="male" data-note="Steady American English male voice, good for cinematic narration.">Guy · English male</option>
