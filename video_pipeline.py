@@ -10,6 +10,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -22,11 +23,34 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MUSIC_LIBRARY_CONFIG = BASE_DIR / "music_library.json"
 
 
-def load_local_env(env_path: Path | None = None) -> None:
+def load_local_env(env_path: Path | None = None, timeout_seconds: float | None = None) -> None:
     env_file = env_path or BASE_DIR / ".env"
     if not env_file.exists():
         return
 
+    if timeout_seconds is not None:
+        result: dict[str, BaseException | None] = {"error": None}
+
+        def worker() -> None:
+            try:
+                _load_local_env_file(env_file)
+            except BaseException as exc:  # pragma: no cover - defensive startup guard
+                result["error"] = exc
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(timeout_seconds)
+        if thread.is_alive():
+            print(f"[提示] 读取 {env_file} 超过 {timeout_seconds:.1f} 秒，已跳过本地 .env 以保证程序启动。", file=sys.stderr, flush=True)
+            return
+        if result["error"]:
+            raise result["error"]
+        return
+
+    _load_local_env_file(env_file)
+
+
+def _load_local_env_file(env_file: Path) -> None:
     for raw_line in env_file.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -56,9 +80,6 @@ def clean_env_value(value: str) -> str:
 def is_placeholder_env_value(value: str) -> bool:
     normalized = value.strip().lower()
     return not normalized or normalized.startswith("your_") or "你的" in normalized
-
-
-load_local_env()
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -2157,6 +2178,7 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def main() -> None:
+    load_local_env(timeout_seconds=2.0)
     args = parse_args()
     result = run_with_args(args)
     print(json.dumps(result, ensure_ascii=False, indent=2))

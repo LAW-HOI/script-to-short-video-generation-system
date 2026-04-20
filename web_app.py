@@ -20,10 +20,15 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
+if __name__ == "__main__":
+    print("Script2Short 正在加载生成引擎...", flush=True)
+
 import video_pipeline as pipeline_script
 
 
-pipeline_script.load_local_env()
+if __name__ == "__main__":
+    print("Script2Short 正在读取本地配置...", flush=True)
+pipeline_script.load_local_env(timeout_seconds=2.0)
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "web_runs"
@@ -1986,6 +1991,10 @@ JOB_STORE: dict[str, WebJob] = {}
 JOB_LOCK = threading.Lock()
 
 
+class ReusableThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 def build_command(payload: dict[str, Any], output_dir: Path) -> list[str]:
     command = [sys.executable, str(BASE_DIR / "video_pipeline.py")]
     title = (payload.get("title") or "web_job").strip()
@@ -3032,8 +3041,12 @@ class AppHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     port = int(os.getenv("AUTO_DIGIT_WEB_PORT", "8765"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), AppHandler)
-    print(f"Script2Short 已启动: http://127.0.0.1:{port}")
+    try:
+        server = ReusableThreadingHTTPServer(("127.0.0.1", port), AppHandler)
+    except OSError as exc:
+        print(f"Script2Short 启动失败：端口 {port} 不可用。请关闭占用该端口的程序，或设置 AUTO_DIGIT_WEB_PORT 换一个端口。", flush=True)
+        raise exc
+    print(f"Script2Short 已启动: http://127.0.0.1:{port}", flush=True)
     server.serve_forever()
 
 
