@@ -2363,10 +2363,11 @@ def post_gemini_with_fallbacks(
             return response, model
         except Exception as exc:
             status_code = get_http_status_code(exc)
-            if status_code in {429, 500, 502, 503, 504}:
-                transient_errors.append(format_gemini_error(model, exc))
+            formatted_error = format_gemini_error(model, exc)
+            if status_code in {400, 429, 500, 502, 503, 504} and should_try_next_gemini_model(exc):
+                transient_errors.append(formatted_error)
                 continue
-            raise
+            raise RuntimeError(f"Gemini 文案生成失败：{formatted_error}") from exc
 
     details = "；".join(transient_errors[-3:]) or "没有可用的备用模型。"
     raise RuntimeError(
@@ -2397,7 +2398,24 @@ def post_gemini_with_retries(
             timeout=120,
         )
         if response.status_code not in retry_statuses:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except Exception:
+                if response.status_code == 400:
+                    simplified_payload = build_simplified_gemini_payload(payload)
+                    if simplified_payload != payload:
+                        fallback_response = requests_module.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                            headers={
+                                "x-goog-api-key": api_key,
+                                "Content-Type": "application/json",
+                            },
+                            json=simplified_payload,
+                            timeout=120,
+                        )
+                        fallback_response.raise_for_status()
+                        return fallback_response
+                raise
             return response
         last_response = response
         if attempt < max_attempts - 1:
@@ -2416,10 +2434,80 @@ def get_http_status_code(exc: Exception) -> int | None:
 def format_gemini_error(model: str, exc: Exception) -> str:
     response = getattr(exc, "response", None)
     status_code = getattr(response, "status_code", "未知状态")
-    text = str(getattr(response, "text", "") or str(exc)).strip()
+    text = extract_response_error_text(response) or str(exc)
+    text = str(text).strip()
     if len(text) > 220:
         text = text[:220] + "..."
     return f"{model}: HTTP {status_code}, {text}"
+
+
+def extract_response_error_text(response: Any) -> str:
+    if response is None:
+        return ""
+    try:
+        data = response.json()
+    except Exception:
+        return str(getattr(response, "text", "") or "")
+    error = data.get("error") if isinstance(data, dict) else None
+    if isinstance(error, dict):
+        message = str(error.get("message") or "").strip()
+        status = str(error.get("status") or "").strip()
+        code = str(error.get("code") or "").strip()
+        details = " ".join(item for item in [code, status, message] if item)
+        return details or json.dumps(error, ensure_ascii=False)
+    return json.dumps(data, ensure_ascii=False)
+
+
+def should_try_next_gemini_model(exc: Exception) -> bool:
+    status_code = get_http_status_code(exc)
+    if status_code in {429, 500, 502, 503, 504}:
+        return True
+    if status_code != 400:
+        return False
+    text = extract_response_error_text(getattr(exc, "response", None)).lower()
+    retry_markers = [
+        "not found",
+        "not supported",
+        "not available",
+        "unsupported",
+        "model",
+        "responsemime",
+        "response_mime",
+        "system_instruction",
+        "systeminstruction",
+    ]
+    hard_fail_markers = [
+        "api key not valid",
+        "invalid api key",
+        "permission denied",
+        "billing",
+        "quota",
+    ]
+    if any(marker in text for marker in hard_fail_markers):
+        return False
+    return any(marker in text for marker in retry_markers)
+
+
+def build_simplified_gemini_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    simplified = dict(payload)
+    generation_config = dict(simplified.get("generationConfig") or {})
+    generation_config.pop("responseMimeType", None)
+    if generation_config:
+        simplified["generationConfig"] = generation_config
+    else:
+        simplified.pop("generationConfig", None)
+    system_instruction = simplified.pop("system_instruction", None)
+    if system_instruction:
+        system_text = normalize_ai_text(system_instruction, separator=" ").strip()
+        contents = list(simplified.get("contents") or [])
+        if contents:
+            first_content = dict(contents[0])
+            parts = list(first_content.get("parts") or [])
+            parts.insert(0, {"text": system_text})
+            first_content["parts"] = parts
+            contents[0] = first_content
+            simplified["contents"] = contents
+    return simplified
 
 
 def generate_voice_preview(payload: dict[str, Any]) -> bytes:
