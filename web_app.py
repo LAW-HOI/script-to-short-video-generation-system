@@ -35,8 +35,6 @@ OUTPUT_DIR = BASE_DIR / "web_runs"
 DEFAULT_GEMINI_TEXT_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
 ]
 
 
@@ -910,14 +908,12 @@ HTML_PAGE = """<!doctype html>
                     <select id="gemini-model" name="gemini_model">
                       <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
                       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                      <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
                     </select>
-                    <span class="tip">默认推荐 `gemini-2.5-flash`。如果某个模型暂时不稳定，可以直接切换。</span>
+                    <span class="tip">默认推荐 `gemini-2.5-flash`。如果当前接口波动，可切换到 `gemini-2.0-flash`。</span>
                   </div>
                   <div class="field">
                     <label for="gemini-model-custom">自定义 Gemini 模型名</label>
-                    <input id="gemini-model-custom" placeholder="例如 gemini-2.0-flash-exp；留空则使用上方选择">
+                    <input id="gemini-model-custom" placeholder="例如 gemini-2.0-flash；留空则使用上方选择">
                   </div>
                   <div class="field">
                     <label for="gemini-api-key">Gemini API Key</label>
