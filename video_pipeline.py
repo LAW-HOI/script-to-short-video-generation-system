@@ -862,6 +862,8 @@ class SubtitleComposer:
         current_time = 0.0
         index = 1
         for segment_index, (text, duration) in enumerate(segments):
+            # Heuristic subtitles do not have word timestamps, so we split text first
+            # and then allocate the segment duration proportionally by "reading weight".
             resolved_language = language or detect_text_language(text)
             subtitle_lines = split_script_text(text, max_chars, language=resolved_language)
             weights = [subtitle_weight(item.strip(), resolved_language) for item in subtitle_lines]
@@ -899,6 +901,8 @@ class SubtitleComposer:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         escaped_model = escape_ffmpeg_filter_path(model_path)
         escaped_destination = escape_ffmpeg_filter_path(output_path)
+        # Ask Whisper for relatively complete segments first, then reflow them ourselves.
+        # This gives us cleaner English word boundaries and less fragmented Chinese subtitles.
         whisper_filter = (
             f"whisper=model={escaped_model}:language={language}:"
             f"format=srt:destination={escaped_destination}:max_len={max(max_chars * 3, 48 if language == 'en' else max_chars * 2)}"
@@ -1637,6 +1641,8 @@ def split_script_text(script: str, max_chars: int, language: str | None = None) 
 
 
 def split_chinese_text(script: str, max_chars: int) -> list[str]:
+    # Chinese subtitles read more naturally when we preserve punctuation-based pauses
+    # and only force character-level splitting as a last resort.
     chunks: list[str] = []
     current = ""
     paragraphs = [item.strip() for item in script.split("\n") if item.strip()]
@@ -1661,6 +1667,8 @@ def split_chinese_text(script: str, max_chars: int) -> list[str]:
 
 
 def split_english_text(script: str, max_chars: int) -> list[str]:
+    # English subtitles should be split by sentence -> clause -> words,
+    # instead of raw characters, otherwise words get torn apart visually.
     chunks: list[str] = []
     current = ""
     paragraphs = [item.strip() for item in script.split("\n") if item.strip()]
@@ -1816,6 +1824,8 @@ def break_long_english_token(token: str, max_chars: int) -> list[str]:
 
 
 def subtitle_display_width(text: str, language: str | None = None) -> int:
+    # We use an approximate display width rather than raw string length so that
+    # English timing and line wrapping are based on word density, not letters.
     resolved_language = language or detect_text_language(text)
     if resolved_language == "en":
         words = re.findall(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*", text)
@@ -2066,6 +2076,8 @@ def build_storyboard_prompt(base_prompt: str | None, segment_text: str) -> str:
 
 
 def prepare_background_assets(job: JobContext, args: argparse.Namespace, prompt_override: str | None = None) -> argparse.Namespace:
+    # Normalize every background strategy into concrete local assets so that the
+    # renderer only needs to care about image/video file paths.
     prepared_args = clone_args(args)
     if prepared_args.background_mode == "manual" and prepared_args.background_image:
         job.background_image_path = Path(prepared_args.background_image).resolve()
@@ -2135,6 +2147,8 @@ def render_video(job: JobContext, args: argparse.Namespace) -> Path:
     )
     resolved_background_video = Path(args.background_video).resolve() if args.background_video else None
     if args.video_mode == "storyboard":
+        # Storyboard mode supports three input shapes:
+        # playlist -> single video -> single image.
         storyboard_playlist = getattr(args, "_storyboard_background_playlist", None)
         if storyboard_playlist:
             print("[步骤] 正在生成短视频（背景视频序列 + 配音）...", file=sys.stderr)
@@ -2177,6 +2191,8 @@ def render_video(job: JobContext, args: argparse.Namespace) -> Path:
 def process_segment_job(job: JobContext, args: argparse.Namespace) -> Path:
     job.output_dir.mkdir(parents=True, exist_ok=True)
     log_event(job.log_path, "segment_started", title=job.title)
+    # Each segment follows the same mini pipeline:
+    # script -> narration audio -> manifest/log -> rendered segment video.
     if args.tts_provider == "edge":
         print("[步骤] 正在合成音频...", file=sys.stderr)
         asyncio.run(
@@ -2206,6 +2222,8 @@ def generate_subtitles_for_job(
     args: argparse.Namespace,
     transition_overlap: float = 0.0,
 ) -> Path:
+    # Subtitle generation is separated from render_video so we can switch between
+    # heuristic subtitles and Whisper subtitles without duplicating render logic.
     if args.subtitle_provider == "whisper":
         whisper_model = args.whisper_model or os.getenv("WHISPER_MODEL_PATH") or ""
         if not whisper_model:
@@ -2267,6 +2285,8 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
         args = prepare_background_assets(job, args)
 
     if args.auto_split:
+        # Auto-split is what turns one long script into a storyboard-like sequence:
+        # each text segment can receive its own background, audio, and transition.
         segments = split_script_text(job.script, args.split_max_chars)
         log_event(job.log_path, "script_split", segment_count=len(segments), split_max_chars=args.split_max_chars)
         print(f"[步骤] 文案已拆分为 {len(segments)} 段，开始逐段生成...", file=sys.stderr)

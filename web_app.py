@@ -2129,6 +2129,8 @@ def discover_whisper_models() -> list[dict[str, str]]:
 
 
 def config_status() -> dict[str, Any]:
+    # The frontend uses this payload to decide whether Gemini / Pexels / Whisper
+    # look ready, and whether the current process is carrying proxy settings.
     whisper_model_path = str(os.getenv("WHISPER_MODEL_PATH") or "").strip()
     whisper_model_ready = bool(
         whisper_model_path
@@ -2292,6 +2294,8 @@ def generate_script_draft(payload: dict[str, Any]) -> dict[str, Any]:
             selected_style_instruction,
         ]
     )
+    # Gemini is asked to return strict JSON so the UI can directly fill title,
+    # script text, and background prompt without another parsing layer.
     requests = pipeline_script.import_requests()
     request_payload = {
         "system_instruction": {
@@ -2362,6 +2366,8 @@ def post_gemini_with_fallbacks(
     api_key: str,
     payload: dict[str, Any],
 ) -> tuple[Any, str]:
+    # We try preferred model first, then fallback models. This keeps the UI simple:
+    # the user picks one model, while the backend quietly retries sensible alternatives.
     models = unique_gemini_models(preferred_model)
     transient_errors: list[str] = []
     for model in models:
