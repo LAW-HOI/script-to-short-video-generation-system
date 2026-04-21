@@ -1876,13 +1876,19 @@ You do not have to chase the dawn. You are already carrying light.`;
         const status = await response.json();
         appConfigStatus = status;
         geminiKeyStatusEl.textContent = status.gemini_api_key
-          ? "已读取本地 Gemini 配置，页面可留空。"
+          ? (status.proxy_enabled
+            ? "已读取本地 Gemini 配置，且检测到代理环境。"
+            : "已读取本地 Gemini 配置，但未检测到代理环境；如遇地区限制，请先配置 HTTP_PROXY / HTTPS_PROXY。")
           : "未读取到 Gemini 配置，请在 .env 中填写 GEMINI_API_KEY，或在页面手动输入。";
         pexelsKeyStatusEl.textContent = status.pexels_api_key
           ? "已读取本地 Pexels 配置，页面可留空。"
           : "未读取到 Pexels 配置，请在 .env 中填写 PEXELS_API_KEY，或在页面手动输入。";
-        geminiReadyPillEl.textContent = status.gemini_api_key ? "Gemini 已就绪" : "Gemini 未配置";
-        geminiReadyPillEl.className = `status-pill ${status.gemini_api_key ? "ok" : "warn"}`;
+        geminiReadyPillEl.textContent = status.gemini_api_key
+          ? (status.proxy_enabled ? "Gemini 已就绪" : "Gemini 已配置，可能受地区限制")
+          : "Gemini 未配置";
+        geminiReadyPillEl.className = `status-pill ${
+          status.gemini_api_key ? (status.proxy_enabled ? "ok" : "warn") : "warn"
+        }`;
         pexelsReadyPillEl.textContent = status.pexels_api_key ? "Pexels 已就绪" : "Pexels 未配置";
         pexelsReadyPillEl.className = `status-pill ${status.pexels_api_key ? "ok" : "warn"}`;
         whisperReadyPillEl.textContent = status.whisper_model ? "Whisper 模型已就绪" : "Whisper 模型未配置";
@@ -2129,6 +2135,11 @@ def config_status() -> dict[str, Any]:
         and not is_placeholder_secret(whisper_model_path)
         and Path(whisper_model_path).exists()
     )
+    proxy_values = {
+        name: str(os.getenv(name) or "").strip()
+        for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
+    }
+    proxy_enabled = any(value for value in proxy_values.values())
     return {
         "gemini_api_key": bool(resolve_secret("", "GEMINI_API_KEY")),
         "pexels_api_key": bool(resolve_secret("", "PEXELS_API_KEY")),
@@ -2137,6 +2148,8 @@ def config_status() -> dict[str, Any]:
         "whisper_models": discover_whisper_models(),
         "music_library": music_library_status(),
         "env_path": str(BASE_DIR / ".env"),
+        "proxy_enabled": proxy_enabled,
+        "proxy_env_names": [name for name, value in proxy_values.items() if value],
     }
 
 
