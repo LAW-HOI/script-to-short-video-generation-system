@@ -4,6 +4,13 @@ Script-to-Short-Video Generation System
 
 Script2Short 是一个面向中文创作场景的本地 AI 短视频生成系统，支持从想法 / 文案到配音、字幕、背景素材、BGM 和成片导出的一体化生成。
 
+## Highlights
+
+- 浏览器工作台驱动：优先通过 Web UI 完成文案、背景、配音、字幕和 BGM 配置
+- 双模式创作：支持懒人模式一键生成，也支持精修模式手动挑选和排序背景素材
+- 双语能力：支持中文 / English 文案生成、配音选择和字幕语言配置
+- 本地优先：密钥、模型、运行日志、缓存素材和输出视频都保留在本机
+
 ## Features
 
 - AI 生成标题、文案、背景提示词和推荐配置
@@ -149,6 +156,12 @@ python3 video_pipeline.py \
 - `docs/screenshots/home.png`
 - `docs/screenshots/candidates.png`
 - `docs/screenshots/jobs.png`
+
+推荐展示顺序：
+
+1. 首页工作台：展示文案输入、语言选择、背景方式和生成入口
+2. 候选素材区：展示 Pexels 背景候选、手动排序和精修模式
+3. 任务状态区：展示日志、时间信息和最终视频预览
 
 ## Local-Only Files
 
