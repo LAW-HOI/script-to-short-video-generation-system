@@ -166,4 +166,21 @@ python3 video_pipeline.py \
 
 ## Local-Only Files
 
-未提交以下内容：A
+未提交以下内容：API Key、Whisper 模型、运行产物和本地音乐素材。仓库已通过 `.gitignore` 排除 `.env`、`web_runs/`、`output/`、`models/`、`music_library/` 和 `music_library.json` 等本地文件，避免把密钥、大文件或未授权素材提交到 GitHub。
+
+## Third-Party Services
+
+本项目会调用或引用以下第三方服务 / 素材：
+
+- Gemini API：用于文案生成
+- Pexels API：用于搜索背景图片 / 视频
+- Edge TTS：用于本地语音合成
+- Whisper / whisper.cpp：用于精准字幕，可选
+- FFmpeg：用于视频合成、转码、字幕和混音
+- Unsplash / Wikimedia Commons：网页背景视觉素材远程引用
+
+详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+
+## License
+
+MIT License，详见 [LICENSE](./LICENSE)。
