@@ -1914,7 +1914,7 @@ You do not have to chase the dawn. You are already carrying light.`;
       bgmMoodEl.innerHTML = "";
       if (!library.ready || moods.length === 0) {
         bgmMoodEl.appendChild(new Option("未检测到音乐库", ""));
-        bgmLibraryStatusEl.textContent = "未检测到可用音乐。请把音频放入 music_library/，并参考 music_library.example.json 创建 music_library.json。";
+        bgmLibraryStatusEl.textContent = "未检测到可用音乐。请把音频放入 music_library/，并参考 examples/music_library.example.json 创建 music_library.json。";
         return;
       }
       bgmMoodEl.appendChild(new Option(`随机选择（${library.track_count || moods.length} 首）`, "random"));
@@ -3085,7 +3085,7 @@ class AppHandler(BaseHTTPRequestHandler):
         return jobs
 
     def respond_html(self) -> None:
-        background_config = str(BASE_DIR / "background_webhook_config.example.json")
+        background_config = str(BASE_DIR / "examples" / "background_webhook_config.example.json")
         content = HTML_PAGE.replace("__BACKGROUND_CONFIG__", background_config)
         data = content.encode("utf-8")
         self.send_response(HTTPStatus.OK)

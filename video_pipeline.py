@@ -2129,7 +2129,7 @@ def run_with_args(args: argparse.Namespace) -> dict[str, Any]:
         if not selected_bgm:
             raise FileNotFoundError(
                 "没有找到可用的本地音乐库 BGM。请在 music_library/ 放入音频，"
-                "并参考 music_library.example.json 创建 music_library.json。"
+                "并参考 examples/music_library.example.json 创建 music_library.json。"
             )
         bgm_audio_path = selected_bgm.path
         bgm_volume = selected_bgm.volume

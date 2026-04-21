@@ -42,7 +42,8 @@ Script2Short 是一个面向中文创作场景的本地 AI 短视频生成系统
 - [web_app.py](./web_app.py)：本地网页工作台
 - [video_pipeline.py](./video_pipeline.py)：核心视频生成链路
 - [.env.example](./.env.example)：本地密钥配置模板
-- [music_library.example.json](./music_library.example.json)：本地音乐库配置示例
+- [examples/music_library.example.json](./examples/music_library.example.json)：本地音乐库配置示例
+- [examples/background_webhook_config.example.json](./examples/background_webhook_config.example.json)：背景 webhook 配置示例
 - [docs/architecture.md](./docs/architecture.md)：项目架构说明
 - [docs/github-launch-kit.md](./docs/github-launch-kit.md)：GitHub 展示、截图和 release 文案模板
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)：当前功能状态
@@ -114,7 +115,7 @@ music_library/
 复制示例配置：
 
 ```bash
-cp music_library.example.json music_library.json
+cp examples/music_library.example.json music_library.json
 ```
 
 示例：

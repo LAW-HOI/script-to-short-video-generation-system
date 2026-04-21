@@ -56,6 +56,41 @@ Implemented in `services/subtitle_utils.py`.
 - Whisper / whisper.cpp: precise subtitle generation
 - FFmpeg: rendering, transitions, subtitles, and BGM mixing
 
+## Repository Layout
+
+Current project layout is intentionally lightweight:
+
+```text
+auto_digit/
+├── web_app.py
+├── video_pipeline.py
+├── services/
+│   ├── __init__.py
+│   └── subtitle_utils.py
+├── examples/
+│   ├── background_webhook_config.example.json
+│   └── music_library.example.json
+├── docs/
+│   ├── architecture.md
+│   ├── github-launch-kit.md
+│   └── screenshots/
+├── .env.example
+├── README.md
+├── PROJECT_STATUS.md
+├── THIRD_PARTY_NOTICES.md
+└── requirements.txt
+```
+
+Locally, you may also see runtime and personal assets such as:
+
+- `web_runs/`
+- `output/`
+- `models/`
+- `music_library/`
+- local test images or videos
+
+These are intentionally excluded from Git tracking and should be treated as workspace data rather than source code.
+
 ## Data Flow
 
 ```text
