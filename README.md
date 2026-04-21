@@ -43,6 +43,7 @@ Script2Short 是一个面向中文创作场景的本地 AI 短视频生成系统
 - [video_pipeline.py](./video_pipeline.py)：核心视频生成链路
 - [.env.example](./.env.example)：本地密钥配置模板
 - [music_library.example.json](./music_library.example.json)：本地音乐库配置示例
+- [docs/github-launch-kit.md](./docs/github-launch-kit.md)：GitHub 展示、截图和 release 文案模板
 - [PROJECT_STATUS.md](./PROJECT_STATUS.md)：当前功能状态
 - [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)：第三方服务与素材说明
 
