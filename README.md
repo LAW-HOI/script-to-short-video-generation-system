@@ -152,7 +152,7 @@ python3 video_pipeline.py \
 
 ## Local-Only Files
 
-API Key、Whisper 模型、运行产物和本地音乐素材都只在本机管理。仓库已通过 `.gitignore` 排除 `.env`、`web_runs/`、`output/`、`models/`、`music_library/` 和 `music_library.json` 等本地文件，避免把密钥、大文件或未授权素材提交到 GitHub。
+未提交以下内容：API Key、Whisper 模型、运行产物和本地音乐素材。仓库已通过 `.gitignore` 排除 `.env`、`web_runs/`、`output/`、`models/`、`music_library/` 和 `music_library.json` 等本地文件，避免把密钥、大文件或未授权素材提交到 GitHub。
 
 ## Third-Party Services
 
